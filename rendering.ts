@@ -1,3 +1,5 @@
+import { truncateToWidth } from "@mariozechner/pi-tui";
+
 type ThemeLike = {
   bold?: (text: string) => string;
   fg?: (color: string, text: string) => string;
@@ -24,8 +26,10 @@ class SimpleTextComponent {
     this.text = text;
   }
 
-  render(): string[] {
-    return this.text.split("\n");
+  render(width?: number): string[] {
+    const lines = this.text.split("\n");
+    if (!width || width <= 0) return lines;
+    return lines.map((line) => truncateToWidth(line, width, "…"));
   }
 
   invalidate(): void {}
@@ -166,5 +170,5 @@ export function renderMcpToolResult(
   const header = style(theme, result.details?.error ? "error" : "success", bold(theme, prefix));
   const body = resultText(result);
 
-  return textComponent(context, body ? `${header}\n${body}` : header);
+  return textComponent(context, body ?? header);
 }
