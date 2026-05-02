@@ -9,6 +9,7 @@ import { loadMetadataCache } from "./metadata-cache.js";
 import { executeCall, executeConnect, executeDescribe, executeList, executeSearch, executeStatus, executeUiMessages } from "./proxy-modes.js";
 import { getConfigPathFromArgv, truncateAtWord } from "./utils.js";
 import { initializeOAuth, shutdownOAuth } from "./mcp-auth-flow.js";
+import { renderDirectMcpToolCall, renderMcpProxyCall, renderMcpToolResult } from "./rendering.js";
 
 export default function mcpAdapter(pi: ExtensionAPI) {
   let state: McpExtensionState | null = null;
@@ -73,6 +74,8 @@ export default function mcpAdapter(pi: ExtensionAPI) {
       promptSnippet: truncateAtWord(spec.description, 100) || `MCP tool from ${spec.serverName}`,
       parameters: Type.Unsafe<Record<string, unknown>>(spec.inputSchema || { type: "object", properties: {} }),
       execute: createDirectToolExecutor(() => state, () => initPromise, spec),
+      renderCall: (args, theme, context) => renderDirectMcpToolCall(spec.serverName, spec.originalName, args, theme, context),
+      renderResult: renderMcpToolResult,
     });
   }
 
@@ -247,6 +250,8 @@ export default function mcpAdapter(pi: ExtensionAPI) {
         server: Type.Optional(Type.String({ description: "Filter to specific server (also disambiguates tool calls)" })),
         action: Type.Optional(Type.String({ description: "Action: 'ui-messages' to retrieve prompts/intents from UI sessions" })),
       }),
+      renderCall: renderMcpProxyCall,
+      renderResult: renderMcpToolResult,
       async execute(_toolCallId, params: {
         tool?: string;
         args?: string;
