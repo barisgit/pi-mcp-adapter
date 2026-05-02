@@ -199,6 +199,43 @@ describe("mcpAdapter session lifecycle", () => {
     expect(api.registerTool).not.toHaveBeenCalledWith(expect.objectContaining({ name: "mcp" }));
   });
 
+  it("registers direct MCP tools with custom call and result renderers", async () => {
+    mocks.resolveDirectTools.mockReturnValue([
+      {
+        serverName: "demo",
+        originalName: "search",
+        prefixedName: "demo_search",
+        description: "Search demo",
+      },
+    ]);
+
+    const { default: mcpAdapter } = await import("../index.ts");
+    const { api } = createPi();
+    mcpAdapter(api);
+
+    const directTool = api.registerTool.mock.calls.find((call: any[]) => call[0].name === "demo_search")?.[0];
+    expect(directTool.renderCall).toBeTypeOf("function");
+    expect(directTool.renderResult).toBeTypeOf("function");
+    expect(directTool.renderCall({ q: "hello" }, {}, undefined).render()).toEqual([
+      "mcp → demo/search",
+      'q: "hello"',
+    ]);
+  });
+
+  it("registers the proxy MCP tool with custom call and result renderers", async () => {
+    const { default: mcpAdapter } = await import("../index.ts");
+    const { api } = createPi();
+    mcpAdapter(api);
+
+    const proxyTool = api.registerTool.mock.calls.find((call: any[]) => call[0].name === "mcp")?.[0];
+    expect(proxyTool.renderCall).toBeTypeOf("function");
+    expect(proxyTool.renderResult).toBeTypeOf("function");
+    expect(proxyTool.renderCall({ tool: "search", server: "demo", args: '{"q":"hello"}' }, {}, undefined).render()).toEqual([
+      "mcp call → demo/search",
+      'q: "hello"',
+    ]);
+  });
+
   it("starts a replacement init immediately and shuts down stale init results", async () => {
     const first = createDeferred<any>();
     const second = createDeferred<any>();
