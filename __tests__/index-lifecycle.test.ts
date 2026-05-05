@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const renderTheme = {
+  bold: (text: string) => text,
+  fg: (_name: string, text: string) => text,
+};
+
 const mocks = vi.hoisted(() => ({
   initializeMcp: vi.fn(),
   updateStatusBar: vi.fn(),
@@ -216,9 +221,8 @@ describe("mcpAdapter session lifecycle", () => {
     const directTool = api.registerTool.mock.calls.find((call: any[]) => call[0].name === "demo_search")?.[0];
     expect(directTool.renderCall).toBeTypeOf("function");
     expect(directTool.renderResult).toBeTypeOf("function");
-    expect(directTool.renderCall({ q: "hello" }, {}, undefined).render()).toEqual([
-      "mcp → demo/search",
-      'q: "hello"',
+    expect(directTool.renderCall({ q: "hello" }, renderTheme, undefined).render(80).map((line: string) => line.trimEnd())).toEqual([
+      'mcp → demo/search {"q":"hello"}',
     ]);
   });
 
@@ -230,9 +234,8 @@ describe("mcpAdapter session lifecycle", () => {
     const proxyTool = api.registerTool.mock.calls.find((call: any[]) => call[0].name === "mcp")?.[0];
     expect(proxyTool.renderCall).toBeTypeOf("function");
     expect(proxyTool.renderResult).toBeTypeOf("function");
-    expect(proxyTool.renderCall({ tool: "search", server: "demo", args: '{"q":"hello"}' }, {}, undefined).render()).toEqual([
-      "mcp call → demo/search",
-      'q: "hello"',
+    expect(proxyTool.renderCall({ tool: "search", server: "demo", args: '{"q":"hello"}' }, renderTheme, undefined).render(80).map((line: string) => line.trimEnd())).toEqual([
+      "mcp tool search",
     ]);
   });
 
