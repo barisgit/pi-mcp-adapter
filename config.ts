@@ -664,3 +664,47 @@ export function writeDirectToolsConfig(
     writeRawConfigObject(filePath, raw);
   }
 }
+
+export function writePromotedToolsConfig(
+  changes: Map<string, string[]>,
+  provenance: Map<string, ServerProvenance>,
+  fullConfig: McpConfig,
+): void {
+  const byPath = new Map<string, { name: string; value: string[]; prov: ServerProvenance }[]>();
+
+  for (const [serverName, value] of changes) {
+    const prov = provenance.get(serverName);
+    if (!prov) continue;
+
+    const targetPath = prov.path;
+
+    if (!byPath.has(targetPath)) byPath.set(targetPath, []);
+    byPath.get(targetPath)!.push({ name: serverName, value, prov });
+  }
+
+  for (const [filePath, entries] of byPath) {
+    const raw = readRawConfigObject(filePath);
+    const servers = getServersObject(raw);
+
+    for (const { name, value, prov } of entries) {
+      if (prov.kind === "import") {
+        const fullDef = fullConfig.mcpServers[name];
+        const base = servers[name] ?? (value.length > 0 ? fullDef : undefined);
+        if (base) {
+          const next = { ...base };
+          if (value.length === 0) delete next.promotedTools;
+          else next.promotedTools = value;
+          servers[name] = next;
+        }
+      } else if (servers[name]) {
+        const next = { ...servers[name] };
+        if (value.length === 0) delete next.promotedTools;
+        else next.promotedTools = value;
+        servers[name] = next;
+      }
+    }
+
+    setServersObject(raw, servers);
+    writeRawConfigObject(filePath, raw);
+  }
+}

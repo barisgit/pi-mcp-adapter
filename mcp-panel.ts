@@ -8,7 +8,7 @@ interface PanelTheme {
   border: string;
   title: string;
   selected: string;
-  direct: string;
+  promoted: string;
   needsAuth: string;
   placeholder: string;
   description: string;
@@ -21,7 +21,7 @@ const DEFAULT_THEME: PanelTheme = {
   border: "2",
   title: "2",
   selected: "36",
-  direct: "32",
+  promoted: "32",
   needsAuth: "33",
   placeholder: "2;3",
   description: "2",
@@ -84,8 +84,8 @@ type ConnectionStatus = "connected" | "idle" | "failed" | "needs-auth" | "connec
 interface ToolState {
   name: string;
   description: string;
-  isDirect: boolean;
-  wasDirect: boolean;
+  isPromoted: boolean;
+  wasPromoted: boolean;
   estimatedTokens: number;
 }
 
@@ -145,13 +145,7 @@ class McpPanel {
       const prov = provenance.get(serverName);
       const serverCache = cache?.servers?.[serverName];
 
-      const globalDirect = config.settings?.directTools;
-      let toolFilter: true | string[] | false = false;
-      if (definition.directTools !== undefined) {
-        toolFilter = definition.directTools;
-      } else if (globalDirect) {
-        toolFilter = globalDirect;
-      }
+      const promotedTools = new Set(definition.promotedTools ?? []);
 
       const tools: ToolState[] = [];
       if (serverCache) {
@@ -160,12 +154,12 @@ class McpPanel {
             continue;
           }
 
-          const isDirect = toolFilter === true || (Array.isArray(toolFilter) && toolFilter.includes(tool.name));
+          const isPromoted = promotedTools.has(tool.name);
           tools.push({
             name: tool.name,
             description: tool.description ?? "",
-            isDirect,
-            wasDirect: isDirect,
+            isPromoted,
+            wasPromoted: isPromoted,
             estimatedTokens: estimateTokens(tool),
           });
         }
@@ -176,13 +170,13 @@ class McpPanel {
               continue;
             }
 
-            const isDirect = toolFilter === true || (Array.isArray(toolFilter) && toolFilter.includes(baseName));
+            const isPromoted = promotedTools.has(baseName);
             const ct: CachedTool = { name: baseName, description: resource.description };
             tools.push({
               name: baseName,
               description: resource.description ?? `Read resource: ${resource.uri}`,
-              isDirect,
-              wasDirect: isDirect,
+              isPromoted,
+              wasPromoted: isPromoted,
               estimatedTokens: estimateTokens(ct),
             });
           }
@@ -261,22 +255,15 @@ class McpPanel {
   }
 
   private updateDirty(): void {
-    this.dirty = this.servers.some((s) => s.tools.some((t) => t.isDirect !== t.wasDirect));
+    this.dirty = this.servers.some((s) => s.tools.some((t) => t.isPromoted !== t.wasPromoted));
   }
 
   private buildResult(): McpPanelResult {
-    const changes = new Map<string, true | string[] | false>();
+    const changes = new Map<string, string[]>();
     for (const server of this.servers) {
-      const changed = server.tools.some((t) => t.isDirect !== t.wasDirect);
+      const changed = server.tools.some((t) => t.isPromoted !== t.wasPromoted);
       if (!changed) continue;
-      const directTools = server.tools.filter((t) => t.isDirect);
-      if (directTools.length === server.tools.length && server.tools.length > 0) {
-        changes.set(server.name, true);
-      } else if (directTools.length === 0) {
-        changes.set(server.name, false);
-      } else {
-        changes.set(server.name, directTools.map((t) => t.name));
-      }
+      changes.set(server.name, server.tools.filter((t) => t.isPromoted).map((t) => t.name));
     }
     return { changes, cancelled: false };
   }
@@ -378,8 +365,8 @@ class McpPanel {
         this.cursorIndex = Math.min(this.cursorIndex, Math.max(0, this.visibleItems.length - 1));
       } else if (item.toolIndex !== undefined) {
         const tool = server.tools[item.toolIndex];
-        tool.isDirect = !tool.isDirect;
-        if (tool.isDirect && server.source === "import") {
+        tool.isPromoted = !tool.isPromoted;
+        if (tool.isPromoted && server.source === "import") {
           this.importNotice = `Imported from ${server.importKind ?? "external"} — will copy to user config on save`;
         }
         this.updateDirty();
@@ -442,15 +429,15 @@ class McpPanel {
   private toggleItem(item: VisibleItem): void {
     const server = this.servers[item.serverIndex];
     if (item.type === "server") {
-      const newState = !server.tools.every((t) => t.isDirect);
+      const newState = !server.tools.every((t) => t.isPromoted);
       if (server.source === "import" && newState) {
         this.importNotice = `Imported from ${server.importKind ?? "external"} — will copy to user config on save`;
       }
-      for (const t of server.tools) t.isDirect = newState;
+      for (const t of server.tools) t.isPromoted = newState;
     } else if (item.toolIndex !== undefined) {
       const tool = server.tools[item.toolIndex];
-      tool.isDirect = !tool.isDirect;
-      if (tool.isDirect && server.source === "import") {
+      tool.isPromoted = !tool.isPromoted;
+      if (tool.isPromoted && server.source === "import") {
         this.importNotice = `Imported from ${server.importKind ?? "external"} — will copy to user config on save`;
       }
     }
@@ -493,7 +480,7 @@ class McpPanel {
 
   private rebuildServerTools(server: ServerState, entry: ServerCacheEntry): void {
     const existingState = new Map<string, boolean>();
-    for (const t of server.tools) existingState.set(t.name, t.isDirect);
+    for (const t of server.tools) existingState.set(t.name, t.isPromoted);
 
     const newTools: ToolState[] = [];
     for (const tool of entry.tools ?? []) {
@@ -502,12 +489,12 @@ class McpPanel {
       }
 
       const prev = existingState.get(tool.name);
-      const isDirect = prev !== undefined ? prev : false;
+      const isPromoted = prev !== undefined ? prev : false;
       newTools.push({
         name: tool.name,
         description: tool.description ?? "",
-        isDirect,
-        wasDirect: prev !== undefined ? server.tools.find((t) => t.name === tool.name)?.wasDirect ?? false : false,
+        isPromoted,
+        wasPromoted: prev !== undefined ? server.tools.find((t) => t.name === tool.name)?.wasPromoted ?? false : false,
         estimatedTokens: estimateTokens(tool),
       });
     }
@@ -520,13 +507,13 @@ class McpPanel {
         }
 
         const prev = existingState.get(baseName);
-        const isDirect = prev !== undefined ? prev : false;
+        const isPromoted = prev !== undefined ? prev : false;
         const ct: CachedTool = { name: baseName, description: resource.description };
         newTools.push({
           name: baseName,
           description: resource.description ?? `Read resource: ${resource.uri}`,
-          isDirect,
-          wasDirect: prev !== undefined ? server.tools.find((t) => t.name === baseName)?.wasDirect ?? false : false,
+          isPromoted,
+          wasPromoted: prev !== undefined ? server.tools.find((t) => t.name === baseName)?.wasPromoted ?? false : false,
           estimatedTokens: estimateTokens(ct),
         });
       }
@@ -631,13 +618,13 @@ class McpPanel {
         : fg(t.hint, "  Keep  ");
       lines.push(row(`Discard unsaved changes?  ${discardBtn}   ${keepBtn}`));
     } else {
-      const directCount = this.servers.reduce((sum, s) => sum + s.tools.filter((t) => t.isDirect).length, 0);
+      const promotedCount = this.servers.reduce((sum, s) => sum + s.tools.filter((t) => t.isPromoted).length, 0);
       const totalTokens = this.servers.reduce(
-        (sum, s) => sum + s.tools.filter((t) => t.isDirect).reduce((ts, t) => ts + t.estimatedTokens, 0),
+        (sum, s) => sum + s.tools.filter((t) => t.isPromoted).reduce((ts, t) => ts + t.estimatedTokens, 0),
         0,
       );
       const stats =
-        directCount > 0 ? `${directCount} direct  ~${totalTokens.toLocaleString()} tokens` : "no direct tools";
+        promotedCount > 0 ? `${promotedCount} schemas  ~${totalTokens.toLocaleString()} tokens` : "no preloaded schemas";
       lines.push(row(fg(t.description, stats + (this.dirty ? fg(t.needsAuth, "  (unsaved)") : ""))));
     }
 
@@ -690,20 +677,20 @@ class McpPanel {
       return `${prefix}   ${nameStr}${importLabel}  ${fg(t.description, "(not cached)")}`;
     }
 
-    const directCount = server.tools.filter((t) => t.isDirect).length;
+    const promotedCount = server.tools.filter((t) => t.isPromoted).length;
     const totalCount = server.tools.length;
     let toggleIcon = fg(t.description, "○");
-    if (directCount === totalCount && totalCount > 0) {
-      toggleIcon = fg(t.direct, "●");
-    } else if (directCount > 0) {
+    if (promotedCount === totalCount && totalCount > 0) {
+      toggleIcon = fg(t.promoted, "●");
+    } else if (promotedCount > 0) {
       toggleIcon = fg(t.needsAuth, "◐");
     }
 
     let toolInfo = "";
     if (totalCount > 0) {
-      toolInfo = `${directCount}/${totalCount}`;
-      if (directCount > 0) {
-        const tokens = server.tools.filter((t) => t.isDirect).reduce((s, t) => s + t.estimatedTokens, 0);
+      toolInfo = `${promotedCount}/${totalCount}`;
+      if (promotedCount > 0) {
+        const tokens = server.tools.filter((t) => t.isPromoted).reduce((s, t) => s + t.estimatedTokens, 0);
         toolInfo += `  ~${tokens.toLocaleString()}`;
       }
       toolInfo = fg(t.description, toolInfo);
@@ -716,7 +703,7 @@ class McpPanel {
     const t = this.t;
     const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
 
-    const toggleIcon = tool.isDirect ? fg(t.direct, "●") : fg(t.description, "○");
+    const toggleIcon = tool.isPromoted ? fg(t.promoted, "●") : fg(t.description, "○");
     const cursor = isCursor ? fg(t.selected, "▸") : " ";
     const nameStr = isCursor ? bold(fg(t.selected, tool.name)) : tool.name;
 

@@ -62,13 +62,86 @@ describe("buildProxyDescription", () => {
     expect(description).not.toContain("MCP + pi");
   });
 
-  it("excludes configured tools from proxy summaries", () => {
+  it("includes configured server descriptions in proxy summaries", () => {
+    const config: McpConfig = {
+      mcpServers: {
+        demo: {
+          command: "npx",
+          args: ["-y", "demo-server"],
+          description: "Demo server summary",
+        },
+      },
+    };
+
+    const cache: MetadataCache = {
+      version: 1,
+      servers: {
+        demo: {
+          configHash: computeServerHash(config.mcpServers.demo),
+          cachedAt: Date.now(),
+          tools: [{ name: "launch_app", description: "Launch app" }],
+          resources: [],
+        },
+      },
+    };
+
+    const description = buildProxyDescription(config, cache, []);
+
+    expect(description).toContain("<mcp_servers>");
+    expect(description).toContain("demo (1 tools) - Demo server summary");
+  });
+
+  it("renders promoted tool schemas in the proxy description", () => {
+    const config: McpConfig = {
+      settings: { toolPrefix: "server" },
+      mcpServers: {
+        github: {
+          command: "npx",
+          args: ["-y", "github"],
+          promotedTools: ["search_repositories"],
+        },
+      },
+    };
+
+    const cache: MetadataCache = {
+      version: 1,
+      servers: {
+        github: {
+          configHash: computeServerHash(config.mcpServers.github),
+          cachedAt: Date.now(),
+          tools: [
+            {
+              name: "search_repositories",
+              description: "Search repositories",
+              inputSchema: {
+                type: "object",
+                properties: { query: { type: "string", description: "Search query" } },
+                required: ["query"],
+              },
+            },
+          ],
+          resources: [],
+        },
+      },
+    };
+
+    const description = buildProxyDescription(config, cache, []);
+
+    expect(description).toContain("<mcp_tool_schemas>");
+    expect(description).toContain('<mcp_tool name="github_search_repositories" server="github">');
+    expect(description).toContain("Search repositories");
+    expect(description).toContain("query (string) *required* - Search query");
+    expect(description).toContain('mcp({ tool: "name", args:');
+  });
+
+  it("excludes configured tools from proxy summaries and promoted schemas", () => {
     const config: McpConfig = {
       settings: { toolPrefix: "server" },
       mcpServers: {
         figma: {
           command: "npx",
           args: ["-y", "figma"],
+          promotedTools: ["get_screenshot", "get_nodes"],
           excludeTools: ["get_figjam", "figma_get_screenshot"],
         },
       },
@@ -93,8 +166,77 @@ describe("buildProxyDescription", () => {
 
     const description = buildProxyDescription(config, cache, []);
 
-    expect(description).toContain("Servers: figma (1 tools)");
+    expect(description).toContain("figma (1 tools)");
     expect(description).not.toContain("figma (3 tools)");
+    expect(description).toContain('<mcp_tool name="figma_get_nodes" server="figma">');
+    expect(description).toContain("Get nodes");
+    expect(description).not.toContain("figma_get_screenshot");
+  });
+
+  it("renders promoted resource schemas in the proxy description", () => {
+    const config: McpConfig = {
+      settings: { toolPrefix: "server" },
+      mcpServers: {
+        docs: {
+          command: "npx",
+          args: ["-y", "docs"],
+          promotedTools: ["get_project_guide"],
+        },
+      },
+    };
+
+    const cache: MetadataCache = {
+      version: 1,
+      servers: {
+        docs: {
+          configHash: computeServerHash(config.mcpServers.docs),
+          cachedAt: Date.now(),
+          tools: [],
+          resources: [
+            { name: "Project Guide", uri: "file://guide.md", description: "Read the project guide" },
+          ],
+        },
+      },
+    };
+
+    const description = buildProxyDescription(config, cache, []);
+
+    expect(description).toContain('<mcp_tool name="docs_get_project_guide" server="docs">');
+    expect(description).toContain("Read the project guide");
+    expect(description).toContain("Parameters:");
+  });
+
+  it("does not treat promoted tools as direct/native tools", () => {
+    const config: McpConfig = {
+      settings: { toolPrefix: "server" },
+      mcpServers: {
+        github: {
+          command: "npx",
+          args: ["-y", "github"],
+          promotedTools: ["search_repositories"],
+        },
+      },
+    };
+
+    const cache: MetadataCache = {
+      version: 1,
+      servers: {
+        github: {
+          configHash: computeServerHash(config.mcpServers.github),
+          cachedAt: Date.now(),
+          tools: [{ name: "search_repositories", description: "Search repositories" }],
+          resources: [],
+        },
+      },
+    };
+
+    const specs = resolveDirectTools(config, cache, "server");
+    const description = buildProxyDescription(config, cache, specs);
+
+    expect(specs).toEqual([]);
+    expect(description).not.toContain("Direct tools available");
+    expect(description).toContain('<mcp_tool name="github_search_repositories" server="github">');
+    expect(description).toContain("Search repositories");
   });
 });
 

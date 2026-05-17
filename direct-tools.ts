@@ -239,12 +239,53 @@ export function buildProxyDescription(
     const directCount = directByServer.get(serverName) ?? 0;
     const proxyCount = totalItems - directCount;
     if (proxyCount > 0) {
-      serverSummaries.push(`${serverName} (${proxyCount} tools)`);
+      const summary = `${serverName} (${proxyCount} tools)`;
+      serverSummaries.push(definition.description ? `${summary} - ${definition.description}` : summary);
     }
   }
 
   if (serverSummaries.length > 0) {
-    desc += `\nServers: ${serverSummaries.join(", ")}\n`;
+    desc += `\n<mcp_servers>\n${serverSummaries.join("\n")}\n</mcp_servers>\n`;
+  }
+
+  const promotedLines: string[] = [];
+  for (const [serverName, definition] of Object.entries(config.mcpServers)) {
+    const promotedTools = definition.promotedTools ?? [];
+    if (promotedTools.length === 0) continue;
+    const entry = cache?.servers?.[serverName];
+    if (!entry || !isServerCacheValid(entry, definition)) continue;
+
+    const promotedSet = new Set(promotedTools);
+    for (const tool of entry.tools ?? []) {
+      if (!promotedSet.has(tool.name)) continue;
+      if (isToolExcluded(tool.name, serverName, prefix, definition.excludeTools)) continue;
+
+      const toolName = formatToolName(tool.name, serverName, prefix);
+      promotedLines.push(`<mcp_tool name="${toolName}" server="${serverName}">`);
+      promotedLines.push(tool.description || "(no description)");
+      promotedLines.push(`  Parameters:`);
+      promotedLines.push(formatSchema(tool.inputSchema, "    "));
+      promotedLines.push(`</mcp_tool>`);
+    }
+
+    if (definition.exposeResources !== false) {
+      for (const resource of entry.resources ?? []) {
+        const baseName = `get_${resourceNameToToolName(resource.name)}`;
+        if (!promotedSet.has(baseName)) continue;
+        if (isToolExcluded(baseName, serverName, prefix, definition.excludeTools)) continue;
+
+        const toolName = formatToolName(baseName, serverName, prefix);
+        promotedLines.push(`<mcp_tool name="${toolName}" server="${serverName}">`);
+        promotedLines.push(resource.description || `Read resource: ${resource.uri}`);
+        promotedLines.push(`  Parameters:`);
+        promotedLines.push(formatSchema(undefined, "    "));
+        promotedLines.push(`</mcp_tool>`);
+      }
+    }
+  }
+
+  if (promotedLines.length > 0) {
+    desc += `\n<mcp_tool_schemas>\n${promotedLines.join("\n")}\n</mcp_tool_schemas>\n`;
   }
 
   desc += `\nUsage:\n`;

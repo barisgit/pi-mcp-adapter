@@ -8,7 +8,7 @@ import {
   previewCompatibilityImports,
   previewSharedServerEntry,
   previewStarterProjectConfig,
-  writeDirectToolsConfig,
+  writePromotedToolsConfig,
   writeSharedServerEntry,
   writeStarterProjectConfig,
 } from "./config.js";
@@ -325,9 +325,9 @@ export async function openMcpPanel(
       (tui, _theme, _keybindings, done) => {
         return createMcpPanel(config, cache, provenanceMap, callbacks, tui, (result: McpPanelResult) => {
           if (!result.cancelled && result.changes.size > 0) {
-            writeDirectToolsConfig(result.changes, provenanceMap, config);
+            writePromotedToolsConfig(result.changes, provenanceMap, config);
             configChanged = true;
-            ctx.ui.notify("Direct tools updated. Pi will reload after this panel closes.", "info");
+            ctx.ui.notify("MCP tool schemas updated. Pi will reload after this panel closes.", "info");
           }
           done();
           resolve();

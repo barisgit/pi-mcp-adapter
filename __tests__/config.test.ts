@@ -215,6 +215,7 @@ describe("config discovery", () => {
     writeJson(join(home, ".config", "mcp", "mcp.json"), {
       mcpServers: {
         genericServer: { command: "generic" },
+        importedClearOnly: { command: "clear" },
       },
     });
 
@@ -228,7 +229,7 @@ describe("config discovery", () => {
       },
     });
 
-    const { getServerProvenance, loadMcpConfig, writeDirectToolsConfig, getPiGlobalConfigPath } = await import("../config.ts");
+    const { getServerProvenance, loadMcpConfig, writeDirectToolsConfig, writePromotedToolsConfig, getPiGlobalConfigPath } = await import("../config.ts");
     const fullConfig = loadMcpConfig();
     const provenance = getServerProvenance();
 
@@ -246,6 +247,28 @@ describe("config discovery", () => {
 
     const projectConfig = JSON.parse(readFileSync(join(project, ".mcp.json"), "utf-8"));
     expect(projectConfig.mcpServers.projectServer).toMatchObject({ command: "project", directTools: ["search"] });
+
+    writePromotedToolsConfig(
+      new Map([
+        ["genericServer", ["lookup"]],
+        ["importedClearOnly", []],
+        ["projectServer", []],
+      ]),
+      provenance,
+      fullConfig,
+    );
+
+    const promotedUserConfig = JSON.parse(readFileSync(getPiGlobalConfigPath(), "utf-8"));
+    expect(promotedUserConfig.mcpServers.genericServer).toMatchObject({
+      command: "generic",
+      promotedTools: ["lookup"],
+    });
+    expect(promotedUserConfig.mcpServers.genericServer.directTools).toBe(true);
+    expect(promotedUserConfig.mcpServers).not.toHaveProperty("importedClearOnly");
+
+    const promotedProjectConfig = JSON.parse(readFileSync(join(project, ".mcp.json"), "utf-8"));
+    expect(promotedProjectConfig.mcpServers.projectServer).toMatchObject({ command: "project" });
+    expect(promotedProjectConfig.mcpServers.projectServer).not.toHaveProperty("promotedTools");
   });
 
   it("builds real diff previews for compatibility imports and shared server writes", async () => {

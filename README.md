@@ -129,8 +129,10 @@ Pi-specific files are the write targets for imported or shared global servers wh
 | `bearerToken` / `bearerTokenEnv` | Token or env var name |
 | `lifecycle` | `"lazy"` (default), `"eager"`, or `"keep-alive"` |
 | `idleTimeout` | Minutes before idle disconnect (overrides global) |
+| `description` | Optional server summary shown in the `mcp` proxy tool description |
 | `exposeResources` | Expose MCP resources as tools (default: true) |
-| `directTools` | `true`, `string[]`, or `false` — register tools individually instead of through proxy |
+| `promotedTools` | `string[]` of original MCP tool names whose cached schemas should be preloaded into the single `mcp` proxy tool description |
+| `directTools` | `true`, `string[]`, or `false` — register tools individually as native Pi tools instead of only through proxy |
 | `excludeTools` | `string[]` of tool names to hide (matches original names like `get_screenshot` and prefixed names like `figma_get_screenshot`) |
 | `debug` | Show server stderr (default: false) |
 
@@ -164,11 +166,32 @@ Pi-specific files are the write targets for imported or shared global servers wh
 
 Per-server `idleTimeout` overrides the global setting.
 
-### Direct Tools
+### Promoted Tools vs Direct Tools
 
-By default, all MCP tools are accessed through the single `mcp` proxy tool. This keeps context small but means the LLM has to discover MCP tools via proxy search. If you want specific tools to show up directly in the agent's tool list — alongside `read`, `bash`, `edit`, etc. — add `directTools` to your config.
+By default, all MCP tools are accessed through the single `mcp` proxy tool. This keeps context small but means the LLM has to discover MCP tools via proxy search.
 
-Per-server:
+Use `promotedTools` when you want a few important tool schemas preloaded into the `mcp` tool description while still calling them through the proxy: `mcp({ tool: "server_tool", args: "{...}" })`. Promoted tools do **not** become native Pi tools.
+
+Use `directTools` when you want specific MCP tools to show up directly in the agent's tool list — alongside `read`, `bash`, `edit`, etc. Direct tools are called by their native tool name, not through `mcp`.
+
+Per-server promoted tools:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "description": "GitHub repository and file search",
+      "promotedTools": ["search_repositories", "get_file_contents"]
+    }
+  }
+}
+```
+
+The cached schemas for those tools are added to the single `mcp` tool description, but calls still go through `mcp({ tool: "github_search_repositories", args: "{...}" })` (or the configured `toolPrefix` form).
+
+Per-server direct tools:
 
 ```json
 {
@@ -228,15 +251,15 @@ To exclude specific tools while still using `directTools: true`, add `excludeToo
 }
 ```
 
-`excludeTools` filters direct tools, proxy search/list/describe, and the `/mcp` panel view.
+`excludeTools` filters direct tools, promoted schemas, proxy search/list/describe, and the `/mcp` panel view.
 
-Each direct tool costs ~150-300 tokens in the system prompt (name + description + schema). Good for targeted sets of 5-20 tools. For servers with 75+ tools, stick with the proxy or pick specific tools with a `string[]`.
+Each direct tool costs ~150-300 tokens in the system prompt (name + description + schema). Promoted tools add schema text to the existing `mcp` tool description without creating native tool entries. Good for targeted sets of 5-20 tools. For servers with 75+ tools, stick with the proxy or pick specific tools with `promotedTools` or a `directTools` string array.
 
 Direct tools register from the metadata cache in the Pi agent dir (`~/.pi/agent/mcp-cache.json` by default, or `$PI_CODING_AGENT_DIR/mcp-cache.json` when set), so no server connections are needed at startup. On the first session after adding `directTools` to a new server, the cache won't exist yet — tools fall back to proxy-only and the cache populates in the background. To force it: `/mcp reconnect <server>`.
 
-When you change direct-tool toggles in `/mcp` or write new config through `/mcp setup`, the extension triggers Pi's normal reload flow automatically. That refreshes extensions, prompts, skills, and MCP tool registration in one shot, so newly configured direct tools can appear without a manual restart.
+When you change schema-preload selections in `/mcp` or write new config through `/mcp setup`, the extension triggers Pi's normal reload flow automatically. That refreshes extensions, prompts, skills, and MCP description rendering in one shot, so newly configured promoted schemas can appear without a manual restart.
 
-**Interactive configuration:** Run `/mcp` to open an interactive panel showing all servers with connection status, tools, and direct/proxy toggles. You can reconnect servers, initiate OAuth, and toggle tools between direct and proxy — all from one overlay.
+**Interactive configuration:** Run `/mcp` to open an interactive panel showing all servers with connection status, tools, and schema-preload toggles. You can reconnect servers, initiate OAuth, and choose which tool schemas are included in the single `mcp` tool description — all from one overlay.
 
 **Guided first-run setup:** Run `/mcp setup` to inspect detected shared MCP files, adopt compatibility imports from other hosts, open discovered config paths, preview exact before/after file diffs for writes, scaffold a minimal project `.mcp.json`, or quick-add RepoPrompt into a standard/shared MCP file.
 
@@ -358,7 +381,7 @@ If `settings.autoAuth` is `true`, `mcp({ connect: ... })`, `mcp({ tool: ... })`,
 - npx-based servers resolve to direct binary paths, skipping the ~143 MB npm parent process
 - MCP server validates arguments, not the adapter
 - Keep-alive servers get health checks and auto-reconnect
-- Specific tools can be promoted from the proxy to first-class Pi tools via `directTools` config, so the LLM sees them directly instead of having to search
+- Specific tool schemas can be preloaded into the single `mcp` description via `promotedTools`, without registering native Pi tools
 
 ## Limitations
 

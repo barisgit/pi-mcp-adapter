@@ -64,4 +64,58 @@ describe("mcp-panel excludeTools", () => {
 
     panel.dispose();
   });
+
+  it("uses promotedTools for panel selection and save results", () => {
+    const config: McpConfig = {
+      settings: { toolPrefix: "server" },
+      mcpServers: {
+        demo: {
+          command: "npx",
+          args: ["-y", "demo"],
+          directTools: true,
+          promotedTools: ["search"],
+        },
+      },
+    };
+
+    const cache: MetadataCache = {
+      version: 1,
+      servers: {
+        demo: {
+          configHash: computeServerHash(config.mcpServers.demo),
+          cachedAt: Date.now(),
+          tools: [
+            { name: "search", description: "Search things" },
+            { name: "fetch", description: "Fetch thing" },
+          ],
+          resources: [],
+        },
+      },
+    };
+
+    let saved: Map<string, string[]> | null = null;
+    const panel = createMcpPanel(
+      config,
+      cache,
+      new Map(),
+      {
+        reconnect: async () => true,
+        getConnectionStatus: () => "idle",
+        refreshCacheAfterReconnect: () => null,
+      },
+      { requestRender: () => {} },
+      (result) => { saved = result.changes; },
+    );
+
+    let output = stripAnsi(panel.render(120).join("\n"));
+    expect(output).toContain("1/2");
+    expect(output).toContain("schemas");
+    expect(output).not.toContain("direct");
+
+    panel.handleInput(" "); // toggle all tools on the server row
+    panel.handleInput("\x13"); // ctrl+s
+
+    expect(saved?.get("demo")).toEqual(["search", "fetch"]);
+    panel.dispose();
+  });
 });

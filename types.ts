@@ -301,10 +301,13 @@ export interface ServerEntry {
   oauth?: OAuthConfig | false;
   lifecycle?: "keep-alive" | "lazy" | "eager";
   idleTimeout?: number; // minutes, overrides global setting
+  description?: string;
   // Resource handling
   exposeResources?: boolean;
   // Direct tool registration
   directTools?: boolean | string[];
+  // Include selected schemas in the proxy tool description
+  promotedTools?: string[];
   // Exclude specific MCP tools/resources by original or prefixed name
   excludeTools?: string[];
   // Debug
@@ -372,7 +375,7 @@ export interface McpPanelCallbacks {
 }
 
 export interface McpPanelResult {
-  changes: Map<string, true | string[] | false>;
+  changes: Map<string, string[]>;
   cancelled: boolean;
 }
 
