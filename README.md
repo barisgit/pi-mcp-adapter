@@ -79,10 +79,10 @@ chrome_devtools_take_screenshot
     fullPage (boolean) - Full page instead of viewport
 ```
 ```
-mcp({ tool: "chrome_devtools_take_screenshot", args: '{"format": "png"}' })
+mcp({ tool: "chrome_devtools_take_screenshot", args: { "format": "png" } })
 ```
 
-Note: `args` is a JSON string, not an object.
+Note: `args` accepts an object. A JSON string containing an object is still accepted for compatibility.
 
 Two calls instead of 26 tools cluttering the context.
 
@@ -170,7 +170,7 @@ Per-server `idleTimeout` overrides the global setting.
 
 By default, all MCP tools are accessed through the single `mcp` proxy tool. This keeps context small but means the LLM has to discover MCP tools via proxy search.
 
-Use `promotedTools` when you want a few important tool schemas preloaded into the `mcp` tool description while still calling them through the proxy: `mcp({ tool: "server_tool", args: "{...}" })`. Promoted tools do **not** become native Pi tools.
+Use `promotedTools` when you want a few important tool schemas preloaded into the `mcp` tool description while still calling them through the proxy: `mcp({ tool: "server_tool", args: { ... } })`. Promoted tools do **not** become native Pi tools.
 
 Use `directTools` when you want specific MCP tools to show up directly in the agent's tool list — alongside `read`, `bash`, `edit`, etc. Direct tools are called by their native tool name, not through `mcp`.
 
@@ -189,7 +189,7 @@ Per-server promoted tools:
 }
 ```
 
-The cached schemas for those tools are added to the single `mcp` tool description, but calls still go through `mcp({ tool: "github_search_repositories", args: "{...}" })` (or the configured `toolPrefix` form).
+The cached schemas for those tools are added to the single `mcp` tool description, but calls still go through `mcp({ tool: "github_search_repositories", args: { ... } })` (or the configured `toolPrefix` form).
 
 Per-server direct tools:
 
@@ -351,13 +351,13 @@ Prefer `.mcp.json` for project-local shared MCP config. Use `.pi/mcp.json` only 
 | List server | `mcp({ server: "name" })` |
 | Search | `mcp({ search: "screenshot navigate" })` |
 | Describe | `mcp({ describe: "tool_name" })` |
-| Call | `mcp({ tool: "...", args: '{"key": "value"}' })` |
+| Call | `mcp({ tool: "...", args: { "key": "value" } })` |
 | Connect | `mcp({ connect: "server-name" })` |
 | UI messages | `mcp({ action: "ui-messages" })` |
 
-Search includes both MCP tools and Pi tools (from extensions). Pi tools appear first with `[pi tool]` prefix. Space-separated words are OR'd.
+Search includes both MCP tools and Pi tools (from extensions). Pi tools appear first with `[pi tool]` prefix. Results are ranked so exact/all-term tool-name matches appear before broader description matches. With a `server` filter, all non-server query terms must match.
 
-Tool names are fuzzy-matched on hyphens and underscores — `context7_resolve_library_id` finds `context7_resolve-library-id`.
+Tool names are tokenized across hyphens, underscores, and camelCase — `context7 resolve library` finds `context7_resolve-library-id`.
 
 ## Commands
 

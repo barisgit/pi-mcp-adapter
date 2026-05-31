@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- MCP proxy `args` now accepts native objects again, while keeping JSON string compatibility and a patternProperties-free schema for provider compatibility.
+- MCP proxy search/list now hydrates cached metadata and lazy-connects explicitly targeted servers, so `mcp({ search, server })` and `mcp({ server })` work before a manual connect.
+- MCP proxy search now ranks exact/all-term tool-name matches ahead of broad description matches and requires all non-server terms when searching within a specific server.
 - Ignored npm lockfiles and removed checked-in `package-lock.json` files.
 
 ## [2.5.3] - 2026-05-01

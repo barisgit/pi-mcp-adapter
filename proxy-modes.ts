@@ -4,6 +4,7 @@ import type { ToolMetadata, McpContent } from "./types.js";
 import { getServerPrefix, parseUiPromptHandoff } from "./types.js";
 import { lazyConnect, updateServerMetadata, updateMetadataCache, getFailureAgeSeconds, updateStatusBar } from "./init.js";
 import { buildToolMetadata, getToolNames, findToolByName, formatSchema } from "./tool-metadata.js";
+import { loadMetadataCache, isServerCacheValid, reconstructToolMetadata } from "./metadata-cache.js";
 import { transformMcpContent } from "./tool-registrar.js";
 import { maybeStartUiSession, type UiSessionRuntime } from "./ui-session.js";
 import { formatAuthRequiredMessage, truncateAtWord } from "./utils.js";
@@ -244,49 +245,156 @@ export function executeDescribe(state: McpExtensionState, toolName: string): Pro
   };
 }
 
-export function executeSearch(
+function hydrateDiscoveryMetadataFromCache(state: McpExtensionState, server?: string): void {
+  const cache = loadMetadataCache();
+  if (!cache) return;
+
+  const prefix = state.config.settings?.toolPrefix ?? "server";
+  const entries = server
+    ? [[server, state.config.mcpServers[server]] as const]
+    : Object.entries(state.config.mcpServers);
+
+  for (const [serverName, definition] of entries) {
+    if (!definition || state.toolMetadata.has(serverName)) continue;
+    const entry = cache.servers?.[serverName];
+    if (entry && isServerCacheValid(entry, definition)) {
+      state.toolMetadata.set(serverName, reconstructToolMetadata(serverName, entry, prefix, definition));
+    }
+  }
+}
+
+async function ensureDiscoveryMetadata(state: McpExtensionState, server: string): Promise<void> {
+  if (state.toolMetadata.has(server)) return;
+
+  hydrateDiscoveryMetadataFromCache(state, server);
+  if (state.toolMetadata.has(server)) return;
+
+  await lazyConnect(state, server);
+}
+
+function normalizeSearchText(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[^a-zA-Z0-9]+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function searchTerms(query: string): string[] {
+  return [...new Set(normalizeSearchText(query).split(/\s+/).filter(Boolean))];
+}
+
+type SearchMatch = { server: string; tool: ToolMetadata; score: number };
+
+function scoreSearchMatch(
+  tool: ToolMetadata,
+  query: string,
+  terms: string[],
+  requireAllTerms: boolean,
+): number | null {
+  const normalizedQuery = normalizeSearchText(query);
+  const name = normalizeSearchText(tool.name);
+  const originalName = normalizeSearchText(tool.originalName);
+  const description = normalizeSearchText(tool.description || "");
+  const nameTerms = new Set([...name.split(/\s+/), ...originalName.split(/\s+/)].filter(Boolean));
+  const descriptionTerms = new Set(description.split(/\s+/).filter(Boolean));
+
+  const hasTerm = (term: string) => nameTerms.has(term) || descriptionTerms.has(term);
+  const matchedTerms = terms.filter(hasTerm);
+  if (terms.length > 0) {
+    if (requireAllTerms && matchedTerms.length !== terms.length) return null;
+    if (!requireAllTerms && matchedTerms.length === 0) return null;
+  } else if (!normalizedQuery) {
+    return null;
+  }
+
+  let score = 0;
+  if (name === normalizedQuery || originalName === normalizedQuery) score += 10000;
+  if (name.includes(normalizedQuery) || originalName.includes(normalizedQuery)) score += 3000;
+  if (description.includes(normalizedQuery)) score += 500;
+
+  const allTermsInName = terms.length > 0 && terms.every(term => nameTerms.has(term));
+  const allTermsSomewhere = terms.length > 0 && matchedTerms.length === terms.length;
+  if (allTermsInName) score += 2000;
+  else if (allTermsSomewhere) score += 1200;
+
+  for (const term of matchedTerms) {
+    if (nameTerms.has(term)) score += 120;
+    if (descriptionTerms.has(term)) score += 30;
+  }
+
+  return score;
+}
+
+export async function executeSearch(
   state: McpExtensionState,
   query: string,
   regex?: boolean,
   server?: string,
   includeSchemas?: boolean,
-): ProxyToolResult {
+): Promise<ProxyToolResult> {
   const showSchemas = includeSchemas !== false;
 
-  const matches: Array<{ server: string; tool: ToolMetadata }> = [];
-
-  let pattern: RegExp;
-  try {
-    if (regex) {
-      pattern = new RegExp(query, "i");
-    } else {
-      const terms = query.trim().split(/\s+/).filter(t => t.length > 0);
-      if (terms.length === 0) {
-        return {
-          content: [{ type: "text" as const, text: "Search query cannot be empty" }],
-          details: { mode: "search", error: "empty_query" },
-        };
-      }
-      const escaped = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-      pattern = new RegExp(escaped.join("|"), "i");
+  if (server) {
+    if (!state.config.mcpServers[server]) {
+      return {
+        content: [{ type: "text" as const, text: `Server "${server}" not found. Use mcp({}) to see available servers.` }],
+        details: { mode: "search", error: "server_not_found", server, matches: [], count: 0, query },
+      };
     }
-  } catch {
+    await ensureDiscoveryMetadata(state, server);
+  }
+
+  const matches: SearchMatch[] = [];
+  const terms = searchTerms(query);
+  if (terms.length === 0) {
     return {
-      content: [{ type: "text" as const, text: `Invalid regex: ${query}` }],
-      details: { mode: "search", error: "invalid_pattern", query },
+      content: [{ type: "text" as const, text: "Search query cannot be empty" }],
+      details: { mode: "search", error: "empty_query" },
     };
   }
+
+  let pattern: RegExp | undefined;
+  if (regex) {
+    try {
+      pattern = new RegExp(query, "i");
+    } catch {
+      return {
+        content: [{ type: "text" as const, text: `Invalid regex: ${query}` }],
+        details: { mode: "search", error: "invalid_pattern", query },
+      };
+    }
+  }
+
+  if (!server) {
+    hydrateDiscoveryMetadataFromCache(state);
+  }
+
+  const serverTerms = server ? searchTerms(server) : [];
+  const effectiveTerms = server
+    ? terms.filter(term => !serverTerms.includes(term))
+    : terms;
+  const rankedTerms = effectiveTerms.length > 0 ? effectiveTerms : terms;
 
   for (const [serverName, metadata] of state.toolMetadata.entries()) {
     if (server && serverName !== server) continue;
     for (const tool of metadata) {
-      if (pattern.test(tool.name) || pattern.test(tool.description)) {
-        matches.push({
-          server: serverName,
-          tool,
-        });
+      if (pattern) {
+        if (pattern.test(tool.name) || pattern.test(tool.description)) {
+          matches.push({ server: serverName, tool, score: 0 });
+        }
+        continue;
+      }
+
+      const score = scoreSearchMatch(tool, query, rankedTerms, Boolean(server));
+      if (score !== null) {
+        matches.push({ server: serverName, tool, score });
       }
     }
+  }
+
+  if (!pattern) {
+    matches.sort((a, b) => b.score - a.score || a.tool.name.localeCompare(b.tool.name));
   }
 
   const totalCount = matches.length;
@@ -333,13 +441,15 @@ export function executeSearch(
   };
 }
 
-export function executeList(state: McpExtensionState, server: string): ProxyToolResult {
+export async function executeList(state: McpExtensionState, server: string): Promise<ProxyToolResult> {
   if (!state.config.mcpServers[server]) {
     return {
       content: [{ type: "text" as const, text: `Server "${server}" not found. Use mcp({}) to see available servers.` }],
       details: { mode: "list", server, tools: [], count: 0, error: "not_found" },
     };
   }
+
+  await ensureDiscoveryMetadata(state, server);
 
   const metadata = state.toolMetadata.get(server);
   const toolNames = metadata?.map(m => m.name) ?? [];
@@ -387,7 +497,7 @@ export function executeList(state: McpExtensionState, server: string): ProxyTool
   };
 }
 
-export async function executeConnect(state: McpExtensionState, serverName: string): Promise<ProxyToolResult> {
+export async function executeConnect(state: McpExtensionState, serverName: string, signal?: AbortSignal): Promise<ProxyToolResult> {
   const definition = state.config.mcpServers[serverName];
   if (!definition) {
     return {
@@ -427,7 +537,7 @@ export async function executeConnect(state: McpExtensionState, serverName: strin
     updateMetadataCache(state, serverName);
     state.failureTracker.delete(serverName);
     updateStatusBar(state);
-    return executeList(state, serverName);
+    return await executeList(state, serverName);
   } catch (error) {
     state.failureTracker.set(serverName, Date.now());
     updateStatusBar(state);
@@ -445,7 +555,14 @@ export async function executeCall(
   args?: Record<string, unknown>,
   serverOverride?: string,
   getPiTools?: () => ToolInfo[],
+  signal?: AbortSignal,
 ): Promise<ProxyToolResult> {
+  if (signal?.aborted) {
+    return {
+      content: [{ type: "text" as const, text: "Tool call cancelled before execution." }],
+      details: { mode: "call", error: "aborted" },
+    };
+  }
   let serverName: string | undefined = serverOverride;
   let toolMeta: ToolMetadata | undefined;
   let autoAuthAttempted = false;
@@ -694,7 +811,7 @@ export async function executeCall(
     state.manager.incrementInFlight(serverName);
 
     if (toolMeta.resourceUri) {
-      const result = await connection.client.readResource({ uri: toolMeta.resourceUri });
+      const result = await connection.client.readResource({ uri: toolMeta.resourceUri }, { signal });
       const content = (result.contents ?? []).map(c => ({
         type: "text" as const,
         text: "text" in c ? c.text : ("blob" in c ? `[Binary data: ${(c as { mimeType?: string }).mimeType ?? "unknown"}]` : JSON.stringify(c)),
@@ -715,11 +832,15 @@ export async function executeCall(
         })
       : null;
 
-    const resultPromise = connection.client.callTool({
-      name: toolMeta.originalName,
-      arguments: args ?? {},
-      _meta: buildMcpRequestMeta(state.sessionId, uiSession?.requestMeta),
-    });
+    const resultPromise = connection.client.callTool(
+      {
+        name: toolMeta.originalName,
+        arguments: args ?? {},
+        _meta: buildMcpRequestMeta(state.sessionId, uiSession?.requestMeta),
+      },
+      undefined,
+      { signal },
+    );
 
     if (toolMeta.uiResourceUri) {
       const result = await resultPromise;

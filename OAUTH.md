@@ -124,7 +124,7 @@ Once authenticated, use the server normally:
 
 ```
 mcp({ server: "my-oauth-server" })
-mcp({ tool: "my-tool", args: '{"key": "value"}' })
+mcp({ tool: "my-tool", args: { "key": "value" } })
 ```
 
 The SDK automatically:

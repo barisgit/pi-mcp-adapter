@@ -11,6 +11,7 @@ import { formatToolName, isToolExcluded } from "./types.js";
 import { resourceNameToToolName } from "./resource-tools.js";
 import { authenticate, supportsOAuth } from "./mcp-auth-flow.js";
 import { formatAuthRequiredMessage } from "./utils.js";
+import { logger } from "./logger.js";
 
 const BUILTIN_NAMES = new Set(["read", "bash", "edit", "write", "grep", "find", "ls", "mcp"]);
 
@@ -131,11 +132,11 @@ export function resolveDirectTools(
       if (isToolExcluded(tool.name, serverName, prefix, definition.excludeTools)) continue;
       const prefixedName = formatToolName(tool.name, serverName, prefix);
       if (BUILTIN_NAMES.has(prefixedName)) {
-        console.warn(`MCP: skipping direct tool "${prefixedName}" (collides with builtin)`);
+        logger.warn(`MCP: skipping direct tool "${prefixedName}" (collides with builtin)`);
         continue;
       }
       if (seenNames.has(prefixedName)) {
-        console.warn(`MCP: skipping duplicate direct tool "${prefixedName}" from "${serverName}"`);
+        logger.warn(`MCP: skipping duplicate direct tool "${prefixedName}" from "${serverName}"`);
         continue;
       }
       seenNames.add(prefixedName);
@@ -157,11 +158,11 @@ export function resolveDirectTools(
         if (isToolExcluded(baseName, serverName, prefix, definition.excludeTools)) continue;
         const prefixedName = formatToolName(baseName, serverName, prefix);
         if (BUILTIN_NAMES.has(prefixedName)) {
-          console.warn(`MCP: skipping direct resource tool "${prefixedName}" (collides with builtin)`);
+          logger.warn(`MCP: skipping direct resource tool "${prefixedName}" (collides with builtin)`);
           continue;
         }
         if (seenNames.has(prefixedName)) {
-          console.warn(`MCP: skipping duplicate direct resource tool "${prefixedName}" from "${serverName}"`);
+          logger.warn(`MCP: skipping duplicate direct resource tool "${prefixedName}" from "${serverName}"`);
           continue;
         }
         seenNames.add(prefixedName);
@@ -294,7 +295,7 @@ export function buildProxyDescription(
   desc += `  mcp({ search: "query" })              → Search MCP tools by name/description\n`;
   desc += `  mcp({ describe: "tool_name" })        → Show tool details and parameters\n`;
   desc += `  mcp({ connect: "server-name" })       → Connect to a server and refresh metadata\n`;
-  desc += `  mcp({ tool: "name", args: '{"key": "value"}' })    → Call a tool (args is JSON string)\n`;
+  desc += `  mcp({ tool: "name", args: {"key": "value"} })      → Call a tool (JSON string also accepted)\n`;
   desc += `  mcp({ action: "ui-messages" })        → Retrieve accumulated messages from completed UI sessions\n`;
   desc += `\nMode: tool (call) > connect > describe > search > server (list) > action > nothing (status)`;
 
@@ -308,7 +309,13 @@ export function createDirectToolExecutor(
   getInitPromise: () => Promise<McpExtensionState> | null,
   spec: DirectToolSpec
 ): DirectToolExecute {
-  return async function execute(_toolCallId, params) {
+  return async function execute(_toolCallId, params, signal) {
+    if (signal?.aborted) {
+      return {
+        content: [{ type: "text" as const, text: "Tool call cancelled before execution." }],
+        details: { error: "aborted", server: spec.serverName },
+      };
+    }
     let state = getState();
     const initPromise = getInitPromise();
 
@@ -380,7 +387,7 @@ export function createDirectToolExecutor(
       state.manager.incrementInFlight(spec.serverName);
 
       if (spec.resourceUri) {
-        const result = await connection.client.readResource({ uri: spec.resourceUri });
+        const result = await connection.client.readResource({ uri: spec.resourceUri }, { signal });
         const content = (result.contents ?? []).map(c => ({
           type: "text" as const,
           text: "text" in c ? c.text : ("blob" in c ? `[Binary data: ${(c as { mimeType?: string }).mimeType ?? "unknown"}]` : JSON.stringify(c)),
@@ -402,11 +409,15 @@ export function createDirectToolExecutor(
           })
         : null;
 
-      const resultPromise = connection.client.callTool({
-        name: spec.originalName,
-        arguments: params ?? {},
-        _meta: buildMcpRequestMeta(state.sessionId, uiSession?.requestMeta),
-      });
+      const resultPromise = connection.client.callTool(
+        {
+          name: spec.originalName,
+          arguments: params ?? {},
+          _meta: buildMcpRequestMeta(state.sessionId, uiSession?.requestMeta),
+        },
+        undefined,
+        { signal },
+      );
 
       const result = await resultPromise;
       uiSession?.sendToolResult(result as unknown as import("@modelcontextprotocol/sdk/types.js").CallToolResult);

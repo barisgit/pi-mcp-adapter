@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { executeCall, executeSearch } from "../proxy-modes.js";
+import { executeCall, executeList, executeSearch } from "../proxy-modes.js";
 import type { McpExtensionState } from "../state.js";
 
 function createState(): McpExtensionState {
@@ -29,12 +29,91 @@ function createState(): McpExtensionState {
   } as unknown as McpExtensionState;
 }
 
+function createConnectedStateWithoutMetadata(): McpExtensionState {
+  const connection = {
+    status: "connected",
+    tools: [
+      {
+        name: "resolve-library-id",
+        description: "Resolve a package name to a Context7-compatible library ID",
+        inputSchema: {
+          type: "object",
+          properties: {
+            libraryName: { type: "string" },
+            query: { type: "string" },
+          },
+        },
+      },
+      {
+        name: "query-docs",
+        description: "Retrieve documentation for any programming library",
+        inputSchema: { type: "object", properties: {} },
+      },
+    ],
+    resources: [],
+  };
+
+  return {
+    config: {
+      mcpServers: {
+        context7: { command: "npx", args: ["context7"] },
+      },
+    },
+    toolMetadata: new Map(),
+    manager: {
+      getConnection: (name: string) => name === "context7" ? connection : undefined,
+    },
+    failureTracker: new Map(),
+  } as unknown as McpExtensionState;
+}
+
 describe("proxy discovery", () => {
-  it("searches MCP tools only", () => {
-    const result = executeSearch(createState(), "read");
+  it("searches MCP tools only", async () => {
+    const result = await executeSearch(createState(), "read");
 
     expect(result.content[0].text).toBe('No tools matching "read"');
     expect(result.details).toMatchObject({ count: 0, matches: [] });
+  });
+
+  it("hydrates missing server metadata before filtered search", async () => {
+    const result = await executeSearch(createConnectedStateWithoutMetadata(), "context7 resolve library", false, "context7");
+
+    expect(result.details).toMatchObject({ count: 1, matches: [{ server: "context7", tool: "context7_resolve-library-id" }] });
+    expect(result.content[0].text).toContain("context7_resolve-library-id");
+  });
+
+  it("hydrates missing server metadata before listing a server", async () => {
+    const result = await executeList(createConnectedStateWithoutMetadata(), "context7");
+
+    expect(result.details).toMatchObject({ count: 2, tools: ["context7_resolve-library-id", "context7_query-docs"] });
+    expect(result.content[0].text).toContain("context7 (2 tools):");
+  });
+
+  it("ranks all-term name matches before broader single-term matches", async () => {
+    const state = createState();
+    state.config.mcpServers.context7 = { command: "npx", args: ["context7"] };
+    state.toolMetadata.set("context7", [
+      {
+        name: "context7_query-docs",
+        originalName: "query-docs",
+        description: "Retrieve documentation for any programming library",
+      },
+      {
+        name: "context7_resolve-library-id",
+        originalName: "resolve-library-id",
+        description: "Resolve a package name to a Context7-compatible library ID",
+      },
+    ]);
+
+    const result = await executeSearch(state, "resolve library");
+
+    expect(result.details).toMatchObject({
+      count: 2,
+      matches: [
+        { server: "context7", tool: "context7_resolve-library-id" },
+        { server: "context7", tool: "context7_query-docs" },
+      ],
+    });
   });
 
   it("tells callers to invoke native Pi tools directly", async () => {
