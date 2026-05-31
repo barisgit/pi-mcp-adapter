@@ -12,6 +12,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync, rmSync } from 'fs';
 import { join } from 'path';
 import { getAgentPath } from './agent-dir.js';
+import { logger } from './logger.js';
 
 /** OAuth token storage format */
 export interface StoredTokens {
@@ -81,7 +82,7 @@ function readAuthEntry(serverName: string): AuthEntry | undefined {
     const data = readFileSync(filePath, 'utf-8');
     return JSON.parse(data) as AuthEntry;
   } catch (error) {
-    console.error(`Failed to read auth entry for ${serverName}:`, error);
+    logger.error(`Failed to read auth entry for ${serverName}`, error instanceof Error ? error : new Error(String(error)));
     return undefined;
   }
 }
@@ -150,7 +151,7 @@ export function removeAuthEntry(serverName: string): void {
       }
     }
   } catch (error) {
-    console.error(`Failed to remove auth entry for ${serverName}:`, error);
+    logger.error(`Failed to remove auth entry for ${serverName}`, error instanceof Error ? error : new Error(String(error)));
   }
 }
 

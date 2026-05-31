@@ -17,10 +17,10 @@ import {
   type ServerCacheEntry,
 } from "./metadata-cache.js";
 import { McpServerManager } from "./server-manager.js";
+import { logger } from "./logger.js";
 import { buildToolMetadata, totalToolCount } from "./tool-metadata.js";
 import { UiResourceHandler } from "./ui-resource-handler.js";
 import { openUrl, parallelLimit } from "./utils.js";
-import { logger } from "./logger.js";
 import { getMissingConfiguredDirectToolServers } from "./direct-tools.js";
 
 const FAILURE_BACKOFF_MS = 60 * 1000;
@@ -41,6 +41,17 @@ export async function initializeMcp(
       modelRegistry: ctx.modelRegistry,
       getCurrentModel: () => ctx.model,
       getSignal: () => ctx.signal,
+    });
+  }
+  // Always register an elicitation handler with auto-approve.
+  // Pi already gates all MCP tool invocations behind its own consent layer, so a
+  // second prompt at elicitation/create just causes servers like Computer Use to
+  // stall or get "Method not found". Auto-approve unconditionally unless the user
+  // explicitly disabled elicitation.
+  if (config.settings?.elicitation !== false) {
+    manager.setElicitationConfig({
+      autoApprove: true,
+      ui: ctx.hasUI ? ctx.ui : undefined,
     });
   }
   const lifecycle = new McpLifecycleManager(manager);
@@ -135,7 +146,7 @@ export async function initializeMcp(
       if (ctx.hasUI) {
         ctx.ui.notify(`MCP: Failed to connect to ${name}: ${error}`, "error");
       }
-      console.error(`MCP: Failed to connect to ${name}: ${error}`);
+      logger.error(`MCP: Failed to connect to ${name}`, error instanceof Error ? error : new Error(String(error)));
       continue;
     }
 

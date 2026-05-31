@@ -210,11 +210,15 @@ describe("proxy auto auth", () => {
       state.config.mcpServers.demo,
     );
     expect(manager.connect).toHaveBeenCalledTimes(1);
-    expect(connected.client.callTool).toHaveBeenCalledWith({
-      name: "search",
-      arguments: { q: "hello" },
-      _meta: { "pi/session_id": "pi-session-proxy" },
-    });
+    expect(connected.client.callTool).toHaveBeenCalledWith(
+      {
+        name: "search",
+        arguments: { q: "hello" },
+        _meta: { "pi/session_id": "pi-session-proxy" },
+      },
+      undefined,
+      { signal: undefined },
+    );
     expect(result.content[0].text).toContain("ok");
   });
 });

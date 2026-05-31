@@ -88,11 +88,15 @@ describe("direct tools auto auth", () => {
       state.config.mcpServers.demo,
     );
     expect(state.manager.close).toHaveBeenCalledWith("demo");
-    expect(connected.client.callTool).toHaveBeenCalledWith({
-      name: "search",
-      arguments: { q: "hello" },
-      _meta: { "pi/session_id": "pi-session-direct" },
-    });
+    expect(connected.client.callTool).toHaveBeenCalledWith(
+      {
+        name: "search",
+        arguments: { q: "hello" },
+        _meta: { "pi/session_id": "pi-session-direct" },
+      },
+      undefined,
+      { signal: undefined },
+    );
     expect(result.content[0].text).toContain("ok");
   });
 

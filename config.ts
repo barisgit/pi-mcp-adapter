@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { getAgentPath } from "./agent-dir.js";
 import type { McpConfig, ServerEntry, McpSettings, ImportKind, ServerProvenance } from "./types.js";
+import { logger } from "./logger.js";
 
 const GENERIC_GLOBAL_CONFIG_PATH = join(homedir(), ".config", "mcp", "mcp.json");
 const PROJECT_CONFIG_NAME = ".mcp.json";
@@ -279,7 +280,7 @@ function expandImports(config: McpConfig): McpConfig {
         }
       }
     } catch (error) {
-      console.warn(`Failed to import MCP config from ${importKind}:`, error);
+      logger.warn(`Failed to import MCP config from ${importKind}`, { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -316,7 +317,7 @@ function readValidatedConfig(path: string, label: string): McpConfig | null {
   try {
     return validateConfig(JSON.parse(readFileSync(path, "utf-8")));
   } catch (error) {
-    console.warn(`Failed to load ${label}:`, error);
+    logger.warn(`Failed to load ${label}`, { error: error instanceof Error ? error.message : String(error) });
     return null;
   }
 }

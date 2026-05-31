@@ -76,7 +76,13 @@ export function findToolByName(metadata: ToolMetadata[] | undefined, toolName: s
   const exact = metadata.find(m => m.name === toolName);
   if (exact) return exact;
   const normalized = toolName.replace(/-/g, "_");
-  return metadata.find(m => m.name.replace(/-/g, "_") === normalized);
+  const byPrefixed = metadata.find(m => m.name.replace(/-/g, "_") === normalized);
+  if (byPrefixed) return byPrefixed;
+  // Fall back to the raw upstream name. Lets callers use the unprefixed tool name
+  // (e.g. "list_apps" instead of "computer_use_list_apps") when a server is selected.
+  const byOriginal = metadata.find(m => m.originalName === toolName);
+  if (byOriginal) return byOriginal;
+  return metadata.find(m => m.originalName.replace(/-/g, "_") === normalized);
 }
 
 export function formatSchema(schema: unknown, indent = "  "): string {

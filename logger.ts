@@ -3,6 +3,10 @@
  * Provides structured, contextual logs with levels.
  */
 
+import { appendFileSync, mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export interface LogContext {
@@ -36,6 +40,9 @@ const LEVEL_PREFIX: Record<LogLevel, string> = {
   warn: "[MCP-UI:WARN]",
   error: "[MCP-UI:ERROR]",
 };
+
+const DEFAULT_LOG_PATH = join(homedir(), ".pi", "logs", "extensions", "pi-mcp-adapter.log");
+const LOG_PATH = process.env.PI_MCP_ADAPTER_LOG_PATH?.trim() || DEFAULT_LOG_PATH;
 
 class Logger {
   private minLevel: LogLevel = "info";
@@ -73,20 +80,7 @@ class Logger {
       timestamp: new Date(),
     };
 
-    // Default console output
-    const prefix = LEVEL_PREFIX[level];
-    const contextStr = formatContext(entry.context);
-    const fullMessage = contextStr ? `${prefix} ${message} ${contextStr}` : `${prefix} ${message}`;
-
-    if (level === "error") {
-      console.error(fullMessage, error ?? "");
-    } else if (level === "warn") {
-      console.warn(fullMessage);
-    } else if (level === "debug") {
-      console.debug(fullMessage);
-    } else {
-      console.log(fullMessage);
-    }
+    appendEntryToFile(entry);
 
     // Custom handlers
     for (const handler of this.handlers) {
@@ -147,6 +141,27 @@ class ChildLogger {
   child(context: LogContext): ChildLogger {
     return new ChildLogger(this.parent, { ...this.context, ...context });
   }
+}
+
+function appendEntryToFile(entry: LogEntry): void {
+  try {
+    mkdirSync(dirname(LOG_PATH), { recursive: true });
+    appendFileSync(LOG_PATH, `${formatEntry(entry)}\n`, "utf-8");
+  } catch {
+    // Logging must never disrupt Pi's TUI/runtime.
+  }
+}
+
+function formatEntry(entry: LogEntry): string {
+  const prefix = LEVEL_PREFIX[entry.level];
+  const contextStr = formatContext(entry.context);
+  const message = contextStr ? `${prefix} ${entry.message} ${contextStr}` : `${prefix} ${entry.message}`;
+  const error = entry.error ? ` ${formatError(entry.error)}` : "";
+  return `${entry.timestamp.toISOString()} ${message}${error}`;
+}
+
+function formatError(error: Error): string {
+  return error.stack ?? error.message;
 }
 
 function formatContext(context?: LogContext): string {

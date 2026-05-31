@@ -28,6 +28,7 @@ import {
   type StoredTokens,
 } from "./mcp-auth.js"
 import type { ServerEntry } from "./types.js"
+import { logger } from "./logger.js"
 
 /** Auth status for a server */
 export type AuthStatus = "authenticated" | "expired" | "not_authenticated"
@@ -181,11 +182,10 @@ export async function authenticate(
 
     try {
       // Open browser
-      console.log(`MCP Auth: Opening browser for ${serverName}`)
       try {
         await open(authorizationUrl)
       } catch (error) {
-        console.warn(`MCP Auth: Failed to open browser for ${serverName}`, { error })
+        logger.warn(`MCP Auth: Failed to open browser for ${serverName}`, { error })
         throw new Error(
           `Could not open browser. Please open this URL manually: ${authorizationUrl}`,
           { cause: error },
@@ -253,8 +253,6 @@ export async function getValidToken(
 
   if (expired === true && entry.tokens.refreshToken) {
     // Token is expired, try to refresh
-    console.log(`MCP Auth: Token expired for ${serverName}, attempting refresh`)
-
     try {
       // Create auth provider for token refresh
       const authProvider = new McpOAuthProvider(serverName, serverUrl, {}, {
@@ -263,7 +261,6 @@ export async function getValidToken(
 
       const clientInfo = await authProvider.clientInformation()
       if (!clientInfo) {
-        console.log(`MCP Auth: No client info for refresh for ${serverName}`)
         return null
       }
 
@@ -274,7 +271,7 @@ export async function getValidToken(
       const refreshed = await getAuthForUrl(serverName, serverUrl)
       return refreshed?.tokens ?? null
     } catch (error) {
-      console.error(`MCP Auth: Token refresh failed for ${serverName}`, { error })
+      logger.error(`MCP Auth: Token refresh failed for ${serverName}`, error instanceof Error ? error : new Error(String(error)))
       return null
     }
   }
@@ -314,7 +311,6 @@ export async function removeAuth(serverName: string): Promise<void> {
   }
   clearAllCredentials(serverName)
   await clearOAuthState(serverName)
-  console.log(`MCP Auth: Removed credentials for ${serverName}`)
 }
 
 /**
