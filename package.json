@@ -56,6 +56,7 @@
     "sampling-handler.ts",
     "elicitation-handler.ts",
     "tool-registrar.ts",
+    "response-cap.ts",
     "resource-tools.ts",
     "mcp-tool-renderer.ts",
     "lifecycle.ts",

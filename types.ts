@@ -331,6 +331,17 @@ export interface McpSettings {
    * instruction when unset.
    */
   authRequiredMessage?: string;
+  /**
+   * Max bytes of text returned to the model from a single tool result before
+   * truncation. Full output is written to a temp file. Defaults to 50KB (the
+   * builtin tool limit). Set to 0 to disable capping.
+   */
+  maxResponseBytes?: number;
+  /**
+   * Max lines of text returned to the model from a single tool result before
+   * truncation. Defaults to 2000 (the builtin tool limit).
+   */
+  maxResponseLines?: number;
 }
 
 // Root config

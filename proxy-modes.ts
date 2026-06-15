@@ -6,6 +6,7 @@ import { lazyConnect, updateServerMetadata, updateMetadataCache, getFailureAgeSe
 import { buildToolMetadata, getToolNames, findToolByName, formatSchema } from "./tool-metadata.js";
 import { loadMetadataCache, isServerCacheValid, reconstructToolMetadata } from "./metadata-cache.js";
 import { transformMcpContent } from "./tool-registrar.js";
+import { capContentBlocks, capText } from "./response-cap.js";
 import { maybeStartUiSession, type UiSessionRuntime } from "./ui-session.js";
 import { formatAuthRequiredMessage, truncateAtWord } from "./utils.js";
 import { authenticate, supportsOAuth } from "./mcp-auth-flow.js";
@@ -816,8 +817,9 @@ export async function executeCall(
         type: "text" as const,
         text: "text" in c ? c.text : ("blob" in c ? `[Binary data: ${(c as { mimeType?: string }).mimeType ?? "unknown"}]` : JSON.stringify(c)),
       }));
+      const capped = capContentBlocks(content, `${serverName}-resource`, state.config.settings).content;
       return {
-        content: content.length > 0 ? content : [{ type: "text" as const, text: "(empty resource)" }],
+        content: capped.length > 0 ? capped : [{ type: "text" as const, text: "(empty resource)" }],
         details: { mode: "call", resourceUri: toolMeta.resourceUri, server: serverName },
       };
     }
@@ -854,7 +856,8 @@ export async function executeCall(
         .join("\n");
 
       if (result.isError) {
-        let errorWithSchema = `Error: ${mcpText || "Tool execution failed"}`;
+        const cappedErr = capText(mcpText || "Tool execution failed", `${serverName}-${toolMeta.originalName}-error`, state.config.settings).text;
+        let errorWithSchema = `Error: ${cappedErr}`;
         if (toolMeta.inputSchema) {
           errorWithSchema += `\n\nExpected parameters:\n${formatSchema(toolMeta.inputSchema)}`;
         }
@@ -864,7 +867,7 @@ export async function executeCall(
         };
       }
 
-      const resultText = mcpText || "(empty result)";
+      const resultText = capText(mcpText || "(empty result)", `${serverName}-${toolMeta.originalName}`, state.config.settings).text;
       const uiMessage = uiSession?.reused
         ? "Updated the open UI."
         : "📺 Interactive UI is now open in your browser. I'll respond to your prompts and intents as you interact with it.";
@@ -880,10 +883,11 @@ export async function executeCall(
     const content = transformMcpContent(mcpContent);
 
     if (result.isError) {
-      const errorText = content
+      const rawErrorText = content
         .filter((c) => c.type === "text")
         .map((c) => (c as { text: string }).text)
         .join("\n") || "Tool execution failed";
+      const errorText = capText(rawErrorText, `${serverName}-${toolMeta.originalName}-error`, state.config.settings).text;
 
       let errorWithSchema = `Error: ${errorText}`;
       if (toolMeta.inputSchema) {
@@ -896,8 +900,9 @@ export async function executeCall(
       };
     }
 
+    const capped = capContentBlocks(content, `${serverName}-${toolMeta.originalName}`, state.config.settings).content;
     return {
-      content: content.length > 0 ? content : [{ type: "text" as const, text: "(empty result)" }],
+      content: capped.length > 0 ? capped : [{ type: "text" as const, text: "(empty result)" }],
       details: { mode: "call", mcpResult: result, server: serverName, tool: toolMeta.originalName },
     };
   } catch (error) {
