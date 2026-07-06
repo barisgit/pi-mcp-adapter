@@ -268,7 +268,6 @@ export function buildHostHtmlTemplate(input: HostHtmlTemplateInput): string {
       const transport = new PostMessageTransport(iframe.contentWindow, null);
       await bridge.connect(transport);
     } catch (error) {
-      console.error("[host] Bridge connection failed:", error);
       showError("Failed to initialize AppBridge: " + String(error));
     }
 
