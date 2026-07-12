@@ -132,6 +132,7 @@ Pi-specific files are the write targets for imported or shared global servers wh
 | `description` | Optional server summary shown in the `mcp` proxy tool description |
 | `exposeResources` | Expose MCP resources as tools (default: true) |
 | `promotedTools` | `string[]` of original MCP tool names whose cached schemas should be preloaded into the single `mcp` proxy tool description |
+| `toolOverrides` | Map of original MCP tool names to `{ "description": "..." }` agent-visible description overrides |
 | `directTools` | `true`, `string[]`, or `false` — register tools individually as native Pi tools instead of only through proxy |
 | `excludeTools` | `string[]` of tool names to hide (matches original names like `get_screenshot` and prefixed names like `figma_get_screenshot`) |
 | `debug` | Show server stderr (default: false) |
@@ -171,6 +172,24 @@ Per-server `idleTimeout` overrides the global setting.
 By default, all MCP tools are accessed through the single `mcp` proxy tool. This keeps context small but means the LLM has to discover MCP tools via proxy search.
 
 Use `promotedTools` when you want a few important tool schemas preloaded into the `mcp` tool description while still calling them through the proxy: `mcp({ tool: "server_tool", args: { ... } })`. Promoted tools do **not** become native Pi tools.
+
+Use `toolOverrides` to replace an upstream tool description everywhere the adapter exposes that tool to agents. Keys are original MCP tool names; input schemas and all other metadata remain unchanged:
+
+```json
+{
+  "mcpServers": {
+    "auggie": {
+      "command": "auggie",
+      "promotedTools": ["codebase-retrieval"],
+      "toolOverrides": {
+        "codebase-retrieval": {
+          "description": "Search the current codebase semantically"
+        }
+      }
+    }
+  }
+}
+```
 
 Use `directTools` when you want specific MCP tools to show up directly in the agent's tool list — alongside `read`, `bash`, `edit`, etc. Direct tools are called by their native tool name, not through `mcp`.
 

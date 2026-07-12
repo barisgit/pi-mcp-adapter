@@ -308,6 +308,8 @@ export interface ServerEntry {
   directTools?: boolean | string[];
   // Include selected schemas in the proxy tool description
   promotedTools?: string[];
+  // Override agent-visible metadata for specific upstream tools
+  toolOverrides?: Record<string, { description: string }>;
   // Exclude specific MCP tools/resources by original or prefixed name
   excludeTools?: string[];
   // Debug
@@ -353,6 +355,14 @@ export interface McpConfig {
 
 // Alias for clarity
 export type ServerDefinition = ServerEntry;
+
+export function getEffectiveToolDescription(
+  definition: Pick<ServerEntry, "toolOverrides">,
+  toolName: string,
+  upstreamDescription?: string,
+): string {
+  return definition.toolOverrides?.[toolName]?.description ?? upstreamDescription ?? "";
+}
 
 export interface ToolMetadata {
   name: string;           // Prefixed tool name (e.g., "xcodebuild_list_sims")

@@ -1,7 +1,7 @@
 import { getToolUiResourceUri } from "@modelcontextprotocol/ext-apps/app-bridge";
 import type { McpExtensionState } from "./state.js";
 import type { ToolMetadata, McpTool, McpResource, ServerEntry } from "./types.js";
-import { formatToolName, isToolExcluded } from "./types.js";
+import { formatToolName, getEffectiveToolDescription, isToolExcluded } from "./types.js";
 import { resourceNameToToolName } from "./resource-tools.js";
 import { extractToolUiStreamMode } from "./utils.js";
 
@@ -33,7 +33,7 @@ export function buildToolMetadata(
     metadata.push({
       name: formatToolName(tool.name, serverName, prefix),
       originalName: tool.name,
-      description: tool.description ?? "",
+      description: getEffectiveToolDescription(definition, tool.name, tool.description),
       inputSchema: tool.inputSchema,
       uiResourceUri,
       uiStreamMode: extractToolUiStreamMode(tool._meta),

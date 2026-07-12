@@ -5,7 +5,7 @@ import { getAgentPath } from "./agent-dir.js";
 import { createHash } from "node:crypto";
 import { getToolUiResourceUri } from "@modelcontextprotocol/ext-apps/app-bridge";
 import type { McpTool, McpResource, ServerEntry, ToolMetadata } from "./types.js";
-import { formatToolName, isToolExcluded } from "./types.js";
+import { formatToolName, getEffectiveToolDescription, isToolExcluded } from "./types.js";
 import { resourceNameToToolName } from "./resource-tools.js";
 import { extractToolUiStreamMode, interpolateEnvRecord, resolveConfigPath } from "./utils.js";
 
@@ -117,7 +117,7 @@ export function reconstructToolMetadata(
   serverName: string,
   entry: ServerCacheEntry,
   prefix: "server" | "none" | "short",
-  definition: Pick<ServerEntry, "exposeResources" | "excludeTools">
+  definition: Pick<ServerEntry, "exposeResources" | "excludeTools" | "toolOverrides">
 ): ToolMetadata[] {
   const metadata: ToolMetadata[] = [];
 
@@ -130,7 +130,7 @@ export function reconstructToolMetadata(
     metadata.push({
       name: formatToolName(tool.name, serverName, prefix),
       originalName: tool.name,
-      description: tool.description ?? "",
+      description: getEffectiveToolDescription(definition, tool.name, tool.description),
       inputSchema: tool.inputSchema,
       uiResourceUri: tool.uiResourceUri,
       uiStreamMode: tool.uiStreamMode,

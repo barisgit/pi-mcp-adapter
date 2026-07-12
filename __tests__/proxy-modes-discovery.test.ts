@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { executeCall, executeList, executeSearch } from "../proxy-modes.js";
+import { executeCall, executeDescribe, executeList, executeSearch } from "../proxy-modes.js";
+import { buildToolMetadata } from "../tool-metadata.js";
 import type { McpExtensionState } from "../state.js";
 
 function createState(): McpExtensionState {
@@ -68,6 +69,29 @@ function createConnectedStateWithoutMetadata(): McpExtensionState {
 }
 
 describe("proxy discovery", () => {
+  it("uses overridden descriptions for list, describe, and search", async () => {
+    const state = createState();
+    const definition = {
+      command: "auggie",
+      toolOverrides: {
+        "codebase-retrieval": { description: "Search the current codebase semantically" },
+      },
+    };
+    state.config.mcpServers.auggie = definition;
+    state.toolMetadata.set("auggie", buildToolMetadata([
+      { name: "codebase-retrieval", description: "Vendor description that must not leak" },
+    ], [], definition, "auggie", "server").metadata);
+
+    const list = await executeList(state, "auggie");
+    const describe = executeDescribe(state, "auggie_codebase-retrieval");
+    const search = await executeSearch(state, "semantically");
+    const output = [list, describe, search].map((result) => result.content[0].text).join("\n");
+
+    expect(output).toContain("Search the current codebase semantically");
+    expect(output).not.toContain("Vendor description that must not leak");
+    expect(search.details).toMatchObject({ count: 1 });
+  });
+
   it("searches MCP tools only", async () => {
     const result = await executeSearch(createState(), "read");
 

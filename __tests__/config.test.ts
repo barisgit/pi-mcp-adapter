@@ -16,6 +16,31 @@ describe("config discovery", () => {
     vi.resetModules();
   });
 
+  it("loads valid tool description overrides and drops invalid entries", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-overrides-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-overrides-project-"));
+    process.env.HOME = home;
+    process.chdir(project);
+
+    writeJson(join(project, ".mcp.json"), {
+      mcpServers: {
+        auggie: {
+          command: "auggie",
+          toolOverrides: {
+            "codebase-retrieval": { description: "Search the current codebase semantically" },
+            invalidDescription: { description: 42 },
+            invalidShape: "not an object",
+          },
+        },
+      },
+    });
+
+    const { loadMcpConfig } = await import("../config.ts");
+    expect(loadMcpConfig().mcpServers.auggie.toolOverrides).toEqual({
+      "codebase-retrieval": { description: "Search the current codebase semantically" },
+    });
+  });
+
   afterEach(() => {
     process.env.HOME = originalHome;
     process.chdir(originalCwd);

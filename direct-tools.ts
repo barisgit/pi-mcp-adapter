@@ -8,7 +8,7 @@ import { formatSchema } from "./tool-metadata.js";
 import { transformMcpContent } from "./tool-registrar.js";
 import { capContentBlocks, capText } from "./response-cap.js";
 import { maybeStartUiSession, type UiSessionRuntime } from "./ui-session.js";
-import { formatToolName, isToolExcluded } from "./types.js";
+import { formatToolName, getEffectiveToolDescription, isToolExcluded } from "./types.js";
 import { resourceNameToToolName } from "./resource-tools.js";
 import { authenticate, supportsOAuth } from "./mcp-auth-flow.js";
 import { formatAuthRequiredMessage } from "./utils.js";
@@ -145,7 +145,7 @@ export function resolveDirectTools(
         serverName,
         originalName: tool.name,
         prefixedName,
-        description: tool.description ?? "",
+        description: getEffectiveToolDescription(definition, tool.name, tool.description),
         inputSchema: tool.inputSchema,
         uiResourceUri: tool.uiResourceUri,
         uiStreamMode: tool.uiStreamMode,
@@ -264,7 +264,7 @@ export function buildProxyDescription(
 
       const toolName = formatToolName(tool.name, serverName, prefix);
       promotedLines.push(`<mcp_tool name="${toolName}" server="${serverName}">`);
-      promotedLines.push(tool.description || "(no description)");
+      promotedLines.push(getEffectiveToolDescription(definition, tool.name, tool.description) || "(no description)");
       promotedLines.push(`  Parameters:`);
       promotedLines.push(formatSchema(tool.inputSchema, "    "));
       promotedLines.push(`</mcp_tool>`);

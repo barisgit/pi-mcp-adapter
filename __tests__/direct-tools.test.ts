@@ -25,6 +25,41 @@ afterEach(() => {
 });
 
 describe("buildProxyDescription", () => {
+  it("uses tool description overrides in promoted schemas", () => {
+    const config: McpConfig = {
+      mcpServers: {
+        auggie: {
+          command: "auggie",
+          promotedTools: ["codebase-retrieval"],
+          toolOverrides: {
+            "codebase-retrieval": { description: "Search the current codebase semantically" },
+          },
+        },
+      },
+    };
+    const cache: MetadataCache = {
+      version: 1,
+      servers: {
+        auggie: {
+          configHash: computeServerHash(config.mcpServers.auggie),
+          cachedAt: Date.now(),
+          tools: [{
+            name: "codebase-retrieval",
+            description: "Vendor description that must not leak",
+            inputSchema: { type: "object", properties: { query: { type: "string" } } },
+          }],
+          resources: [],
+        },
+      },
+    };
+
+    const description = buildProxyDescription(config, cache, []);
+
+    expect(description).toContain("Search the current codebase semantically");
+    expect(description).not.toContain("Vendor description that must not leak");
+    expect(description).toContain("query (string)");
+  });
+
   it("documents the ui-messages action", () => {
     const config: McpConfig = {
       mcpServers: {
@@ -301,6 +336,43 @@ describe("metadata cache hashing", () => {
 });
 
 describe("excludeTools filtering", () => {
+  it("uses tool description overrides for live, cached, and direct metadata", () => {
+    const definition = {
+      command: "auggie",
+      directTools: true,
+      toolOverrides: {
+        "codebase-retrieval": { description: "Search the current codebase semantically" },
+      },
+    };
+    const upstreamTool = {
+      name: "codebase-retrieval",
+      description: "Vendor description that must not leak",
+      inputSchema: { type: "object", properties: { query: { type: "string" } } },
+    };
+    const cache: MetadataCache = {
+      version: 1,
+      servers: {
+        auggie: {
+          configHash: computeServerHash(definition),
+          cachedAt: Date.now(),
+          tools: [upstreamTool],
+          resources: [],
+        },
+      },
+    };
+
+    const live = buildToolMetadata([upstreamTool], [], definition, "auggie", "server").metadata[0];
+    const cached = reconstructToolMetadata("auggie", cache.servers.auggie, "server", definition)[0];
+    const direct = resolveDirectTools({ mcpServers: { auggie: definition } }, cache, "server")[0];
+
+    expect(live.description).toBe("Search the current codebase semantically");
+    expect(cached.description).toBe("Search the current codebase semantically");
+    expect(direct.description).toBe("Search the current codebase semantically");
+    expect(live.inputSchema).toEqual(upstreamTool.inputSchema);
+    expect(cached.inputSchema).toEqual(upstreamTool.inputSchema);
+    expect(direct.inputSchema).toEqual(upstreamTool.inputSchema);
+  });
+
   it("filters excluded tools from live and cached metadata", () => {
     const definition = {
       command: "npx",

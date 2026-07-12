@@ -334,8 +334,26 @@ function validateConfig(raw: unknown): McpConfig {
     return { mcpServers: {} };
   }
 
+  const normalizedServers: Record<string, ServerEntry> = {};
+  for (const [name, server] of Object.entries(servers)) {
+    if (!server || typeof server !== "object" || Array.isArray(server)) continue;
+    const definition = { ...(server as ServerEntry) };
+    if (definition.toolOverrides !== undefined) {
+      const overrides: NonNullable<ServerEntry["toolOverrides"]> = {};
+      if (definition.toolOverrides && typeof definition.toolOverrides === "object" && !Array.isArray(definition.toolOverrides)) {
+        for (const [toolName, override] of Object.entries(definition.toolOverrides)) {
+          if (override && typeof override === "object" && !Array.isArray(override) && typeof override.description === "string") {
+            overrides[toolName] = { description: override.description };
+          }
+        }
+      }
+      definition.toolOverrides = overrides;
+    }
+    normalizedServers[name] = definition;
+  }
+
   return {
-    mcpServers: servers as Record<string, ServerEntry>,
+    mcpServers: normalizedServers,
     imports: Array.isArray(obj.imports) ? (obj.imports as ImportKind[]) : undefined,
     settings: obj.settings as McpSettings | undefined,
   };
