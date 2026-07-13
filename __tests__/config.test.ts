@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -347,5 +347,21 @@ describe("config discovery", () => {
     const starterPath = writeStarterProjectConfig();
     const starter = JSON.parse(readFileSync(starterPath, "utf-8"));
     expect(starter.mcpServers).toEqual({});
+  });
+
+  it("preserves a config symlink when atomically writing its target", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "pi-mcp-config-symlink-"));
+    const targetPath = join(dir, "target.json");
+    const linkPath = join(dir, "mcp.json");
+    writeJson(targetPath, { mcpServers: {} });
+    symlinkSync(targetPath, linkPath);
+
+    const { writeSharedServerEntry } = await import("../config.ts");
+    writeSharedServerEntry(linkPath, "demo", { command: "demo" });
+
+    expect(lstatSync(linkPath).isSymbolicLink()).toBe(true);
+    expect(JSON.parse(readFileSync(targetPath, "utf-8"))).toMatchObject({
+      mcpServers: { demo: { command: "demo" } },
+    });
   });
 });

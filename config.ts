@@ -1,5 +1,5 @@
 // config.ts - Config loading with import support
-import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { getAgentPath } from "./agent-dir.js";
@@ -459,10 +459,16 @@ function readRawConfigObject(filePath: string): Record<string, unknown> {
 }
 
 function writeRawConfigObject(filePath: string, raw: Record<string, unknown>): void {
-  mkdirSync(dirname(filePath), { recursive: true });
-  const tmpPath = `${filePath}.${process.pid}.tmp`;
+  let writePath = filePath;
+  try {
+    if (lstatSync(filePath).isSymbolicLink()) writePath = realpathSync(filePath);
+  } catch {
+    // Missing paths are created at the requested location.
+  }
+  mkdirSync(dirname(writePath), { recursive: true });
+  const tmpPath = `${writePath}.${process.pid}.tmp`;
   writeFileSync(tmpPath, `${JSON.stringify(raw, null, 2)}\n`, "utf-8");
-  renameSync(tmpPath, filePath);
+  renameSync(tmpPath, writePath);
 }
 
 function getServersObject(raw: Record<string, unknown>): Record<string, ServerEntry> {
