@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { executeCall, executeDescribe, executeList, executeSearch } from "../proxy-modes.js";
+import { readFileSync, rmSync } from "node:fs";
+import { executeCall, executeConnect, executeDescribe, executeList, executeReadResource, executeSearch } from "../proxy-modes.js";
 import { buildToolMetadata } from "../tool-metadata.js";
 import type { McpExtensionState } from "../state.js";
 
@@ -153,5 +154,65 @@ describe("proxy discovery", () => {
       '"read" is a native Pi tool. Call read directly instead of using mcp({ tool: "read" }).',
     );
     expect(result.details).toMatchObject({ error: "native_tool", requestedTool: "read" });
+  });
+
+  it("reads explicit resource URIs and saves binary content as a private file", async () => {
+    const state = createState();
+    state.manager = {
+      getConnection: () => ({ status: "connected" }),
+      readResource: async () => ({
+        contents: [
+          { uri: "docs://guide", text: "guide text", mimeType: "text/plain" },
+          { uri: "docs://asset", blob: Buffer.from("binary data").toString("base64"), mimeType: "application/octet-stream" },
+        ],
+      }),
+    } as unknown as McpExtensionState["manager"];
+
+    const result = await executeReadResource(state, "demo", "docs://guide");
+    const details = result.details as { mode: string; files: string[] };
+
+    expect(result.content[0].text).toBe("guide text");
+    expect(details.mode).toBe("resource");
+    expect(details.files).toHaveLength(1);
+    expect(readFileSync(details.files[0], "utf8")).toBe("binary data");
+    rmSync(details.files[0], { force: true });
+  });
+
+  it("reports aborted and failed explicit resource reads", async () => {
+    const state = createState();
+    state.manager = {
+      getConnection: () => ({ status: "connected" }),
+      readResource: async () => { throw new Error("resource unavailable"); },
+    } as unknown as McpExtensionState["manager"];
+    const controller = new AbortController();
+    controller.abort();
+
+    const aborted = await executeReadResource(state, "demo", "docs://guide", controller.signal);
+    const failed = await executeReadResource(state, "demo", "docs://guide");
+
+    expect(aborted.details).toMatchObject({ mode: "resource", error: "aborted" });
+    expect(failed.details).toMatchObject({ mode: "resource", error: "read_failed", message: "resource unavailable" });
+  });
+
+  it("delegates registered resource tools to the explicit resource reader", async () => {
+    const state = createState();
+    state.toolMetadata.set("demo", [{
+      name: "demo_get_guide",
+      originalName: "get_guide",
+      description: "Read guide",
+      resourceUri: "docs://guide",
+    }]);
+    state.manager = {
+      getConnection: () => ({ status: "connected" }),
+      readResource: async () => ({ contents: [{ uri: "docs://guide", text: "guide" }] }),
+      touch: () => undefined,
+      incrementInFlight: () => undefined,
+      decrementInFlight: () => undefined,
+    } as unknown as McpExtensionState["manager"];
+
+    const result = await executeCall(state, "demo_get_guide", {}, "demo");
+
+    expect(result.content[0].text).toBe("guide");
+    expect(result.details).toMatchObject({ mode: "resource", uri: "docs://guide" });
   });
 });

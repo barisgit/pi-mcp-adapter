@@ -6,7 +6,7 @@ import { loadMcpConfig } from "./config.js";
 import { buildProxyDescription, createDirectToolExecutor, getMissingConfiguredDirectToolServers, resolveDirectTools } from "./direct-tools.js";
 import { flushMetadataCache, initializeMcp, updateStatusBar } from "./init.js";
 import { loadMetadataCache } from "./metadata-cache.js";
-import { executeCall, executeConnect, executeDescribe, executeList, executeSearch, executeStatus, executeUiMessages } from "./proxy-modes.js";
+import { executeCall, executeConnect, executeDescribe, executeList, executeReadResource, executeSearch, executeStatus, executeUiMessages } from "./proxy-modes.js";
 import { getConfigPathFromArgv, truncateAtWord } from "./utils.js";
 import { initializeOAuth, shutdownOAuth } from "./mcp-auth-flow.js";
 import { McpCallComponent, McpResultComponent } from "./mcp-tool-renderer.js";
@@ -329,6 +329,7 @@ export default function mcpAdapter(pi: ExtensionAPI) {
       promptSnippet: "MCP gateway - connect to MCP servers and call their tools",
       parameters: Type.Object({
         tool: Type.Optional(Type.String({ description: "Tool name to call (e.g., 'xcodebuild_list_sims')" })),
+        resource: Type.Optional(Type.String({ description: "Resource URI or expanded template URI to read (requires server)" })),
         args: Type.Optional(Type.Object({}, {
           additionalProperties: Type.Any(),
           description: "Arguments as an object; JSON string is also accepted for compatibility (e.g., {\"key\": \"value\"})",
@@ -352,6 +353,7 @@ export default function mcpAdapter(pi: ExtensionAPI) {
       renderResult: (result, options, theme, context) => new McpResultComponent(result, options.expanded, context?.isError ?? false, theme),
       async execute(_toolCallId, params: {
         tool?: string;
+        resource?: string;
         args?: unknown;
         connect?: string;
         describe?: string;
@@ -385,6 +387,15 @@ export default function mcpAdapter(pi: ExtensionAPI) {
         }
         if (params.tool) {
           return executeCall(state, params.tool, parsedArgs, params.server, getPiTools, signal);
+        }
+        if (params.resource) {
+          if (!params.server) {
+            return {
+              content: [{ type: "text" as const, text: "Reading a resource requires the server parameter." }],
+              details: { error: "server_required", resource: params.resource },
+            };
+          }
+          return executeReadResource(state, params.server, params.resource, signal);
         }
         if (params.connect) {
           return executeConnect(state, params.connect, signal);

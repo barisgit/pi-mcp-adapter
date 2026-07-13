@@ -197,7 +197,7 @@ describe("UI Streaming", () => {
       (manager as unknown as {
         attachAdapterNotificationHandlers: (serverName: string, client: { setNotificationHandler: typeof client.setNotificationHandler }) => void;
       }).attachAdapterNotificationHandlers(serverName, client);
-      expect(client.setNotificationHandler).toHaveBeenCalledOnce();
+      expect(client.setNotificationHandler).toHaveBeenCalledTimes(2);
       return client.setNotificationHandler.mock.calls[0][1] as (notification: {
         method: string;
         params: {

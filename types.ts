@@ -33,8 +33,20 @@ export interface McpTool {
 export interface McpResource {
   uri: string;
   name: string;
+  title?: string;
   description?: string;
   mimeType?: string;
+  annotations?: Record<string, unknown>;
+  _meta?: Record<string, unknown>;
+}
+
+export interface McpResourceTemplate {
+  uriTemplate: string;
+  name: string;
+  title?: string;
+  description?: string;
+  mimeType?: string;
+  annotations?: Record<string, unknown>;
   _meta?: Record<string, unknown>;
 }
 
@@ -369,6 +381,10 @@ export interface ToolMetadata {
   originalName: string;   // Original MCP tool name (e.g., "list_sims")
   description: string;
   resourceUri?: string;   // For resource tools: the URI to read
+  resourceTitle?: string;
+  resourceMimeType?: string;
+  resourceAnnotations?: Record<string, unknown>;
+  resourceMeta?: Record<string, unknown>;
   uiResourceUri?: string; // For app-enabled tools: the UI resource URI
   inputSchema?: unknown;  // JSON Schema for parameters (stored for describe/errors)
   uiStreamMode?: UiStreamMode;

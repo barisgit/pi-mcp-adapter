@@ -9,7 +9,7 @@ import { transformMcpContent } from "./tool-registrar.js";
 import { capContentBlocks, capText } from "./response-cap.js";
 import { maybeStartUiSession, type UiSessionRuntime } from "./ui-session.js";
 import { formatToolName, getEffectiveToolDescription, isToolExcluded } from "./types.js";
-import { resourceNameToToolName } from "./resource-tools.js";
+import { resourceContentsToBlocks, resourceToolBaseNames } from "./resource-tools.js";
 import { authenticate, supportsOAuth } from "./mcp-auth-flow.js";
 import { formatAuthRequiredMessage } from "./utils.js";
 import { logger } from "./logger.js";
@@ -153,8 +153,10 @@ export function resolveDirectTools(
     }
 
     if (definition.exposeResources !== false) {
-      for (const resource of serverCache.resources ?? []) {
-        const baseName = `get_${resourceNameToToolName(resource.name)}`;
+      const resources = serverCache.resources ?? [];
+      const resourceNames = resourceToolBaseNames(resources, serverCache.tools?.map(tool => tool.name));
+      for (const [index, resource] of resources.entries()) {
+        const baseName = resourceNames[index];
         if (toolFilter !== true && !toolFilter.includes(baseName)) continue;
         if (isToolExcluded(baseName, serverName, prefix, definition.excludeTools)) continue;
         const prefixedName = formatToolName(baseName, serverName, prefix);
@@ -230,9 +232,11 @@ export function buildProxyDescription(
     const toolCount = (entry?.tools ?? []).filter(
       (tool) => !isToolExcluded(tool.name, serverName, prefix, definition.excludeTools),
     ).length;
+    const resources = entry?.resources ?? [];
+    const resourceNames = resourceToolBaseNames(resources, entry?.tools?.map(tool => tool.name));
     const resourceCount = definition?.exposeResources !== false
-      ? (entry?.resources ?? []).filter((resource) => {
-          const baseName = `get_${resourceNameToToolName(resource.name)}`;
+      ? resources.filter((_resource, index) => {
+          const baseName = resourceNames[index];
           return !isToolExcluded(baseName, serverName, prefix, definition.excludeTools);
         }).length
       : 0;
@@ -271,8 +275,10 @@ export function buildProxyDescription(
     }
 
     if (definition.exposeResources !== false) {
-      for (const resource of entry.resources ?? []) {
-        const baseName = `get_${resourceNameToToolName(resource.name)}`;
+      const resources = entry.resources ?? [];
+      const resourceNames = resourceToolBaseNames(resources, entry.tools?.map(tool => tool.name));
+      for (const [index, resource] of resources.entries()) {
+        const baseName = resourceNames[index];
         if (!promotedSet.has(baseName)) continue;
         if (isToolExcluded(baseName, serverName, prefix, definition.excludeTools)) continue;
 
@@ -297,6 +303,7 @@ export function buildProxyDescription(
   desc += `  mcp({ describe: "tool_name" })        → Show tool details and parameters\n`;
   desc += `  mcp({ connect: "server-name" })       → Connect to a server and refresh metadata\n`;
   desc += `  mcp({ tool: "name", args: {"key": "value"} })      → Call a tool (JSON string also accepted)\n`;
+  desc += `  mcp({ resource: "uri", server: "name" }) → Read a concrete or template-expanded resource URI\n`;
   desc += `  mcp({ action: "ui-messages" })        → Retrieve accumulated messages from completed UI sessions\n`;
   desc += `\nMode: tool (call) > connect > describe > search > server (list) > action > nothing (status)`;
 
@@ -389,14 +396,11 @@ export function createDirectToolExecutor(
 
       if (spec.resourceUri) {
         const result = await connection.client.readResource({ uri: spec.resourceUri }, { signal });
-        const content = (result.contents ?? []).map(c => ({
-          type: "text" as const,
-          text: "text" in c ? c.text : ("blob" in c ? `[Binary data: ${(c as { mimeType?: string }).mimeType ?? "unknown"}]` : JSON.stringify(c)),
-        }));
-        const cappedResource = capContentBlocks(content, `${spec.serverName}-resource`, state.config.settings).content;
+        const converted = resourceContentsToBlocks(result.contents ?? [], `${spec.serverName}-resource`);
+        const cappedResource = capContentBlocks(converted.content, `${spec.serverName}-resource`, state.config.settings).content;
         return {
           content: cappedResource.length > 0 ? cappedResource : [{ type: "text" as const, text: "(empty resource)" }],
-          details: { server: spec.serverName, resourceUri: spec.resourceUri },
+          details: { server: spec.serverName, resourceUri: spec.resourceUri, files: converted.files },
         };
       }
 

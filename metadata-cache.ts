@@ -4,9 +4,9 @@ import { dirname } from "node:path";
 import { getAgentPath } from "./agent-dir.js";
 import { createHash } from "node:crypto";
 import { getToolUiResourceUri } from "@modelcontextprotocol/ext-apps/app-bridge";
-import type { McpTool, McpResource, ServerEntry, ToolMetadata } from "./types.js";
+import type { McpTool, McpResource, McpResourceTemplate, ServerEntry, ToolMetadata } from "./types.js";
 import { formatToolName, getEffectiveToolDescription, isToolExcluded } from "./types.js";
-import { resourceNameToToolName } from "./resource-tools.js";
+import { resourceToolBaseNames } from "./resource-tools.js";
 import { extractToolUiStreamMode, interpolateEnvRecord, resolveConfigPath } from "./utils.js";
 
 const CACHE_VERSION = 1;
@@ -23,13 +23,20 @@ export interface CachedTool {
 export interface CachedResource {
   uri: string;
   name: string;
+  title?: string;
   description?: string;
+  mimeType?: string;
+  annotations?: Record<string, unknown>;
+  _meta?: Record<string, unknown>;
 }
+
+export type CachedResourceTemplate = McpResourceTemplate;
 
 export interface ServerCacheEntry {
   configHash: string;
   tools: CachedTool[];
   resources: CachedResource[];
+  resourceTemplates?: CachedResourceTemplate[];
   cachedAt: number;
 }
 
@@ -138,9 +145,11 @@ export function reconstructToolMetadata(
   }
 
   if (definition.exposeResources !== false) {
-    for (const resource of entry.resources ?? []) {
+    const resources = entry.resources ?? [];
+    const baseNames = resourceToolBaseNames(resources, entry.tools?.map(tool => tool.name));
+    for (const [index, resource] of resources.entries()) {
       if (!resource?.name || !resource?.uri) continue;
-      const baseName = `get_${resourceNameToToolName(resource.name)}`;
+      const baseName = baseNames[index];
       if (isToolExcluded(baseName, serverName, prefix, definition.excludeTools)) {
         continue;
       }
@@ -150,6 +159,10 @@ export function reconstructToolMetadata(
         originalName: baseName,
         description: resource.description ?? `Read resource: ${resource.uri}`,
         resourceUri: resource.uri,
+        resourceTitle: resource.title,
+        resourceMimeType: resource.mimeType,
+        resourceAnnotations: resource.annotations,
+        resourceMeta: resource._meta,
       });
     }
   }
@@ -175,8 +188,16 @@ export function serializeResources(resources: McpResource[]): CachedResource[] {
     .map(r => ({
       uri: r.uri,
       name: r.name,
+      title: r.title,
       description: r.description,
+      mimeType: r.mimeType,
+      annotations: r.annotations,
+      _meta: r._meta,
     }));
+}
+
+export function serializeResourceTemplates(templates: McpResourceTemplate[]): CachedResourceTemplate[] {
+  return templates.filter(template => template?.name && template?.uriTemplate).map(template => ({ ...template }));
 }
 
 function stableStringify(value: unknown): string {

@@ -10,6 +10,7 @@ import { capContentBlocks, capText } from "./response-cap.js";
 import { maybeStartUiSession, type UiSessionRuntime } from "./ui-session.js";
 import { formatAuthRequiredMessage, truncateAtWord } from "./utils.js";
 import { authenticate, supportsOAuth } from "./mcp-auth-flow.js";
+import { resourceContentsToBlocks } from "./resource-tools.js";
 
 type ProxyToolResult = AgentToolResult<Record<string, unknown>>;
 
@@ -24,6 +25,46 @@ function getAuthRequiredMessage(
   defaultMessage = `Server "${serverName}" requires OAuth authentication. Run /mcp-auth ${serverName} first.`,
 ): string {
   return formatAuthRequiredMessage(state.config, serverName, defaultMessage);
+}
+
+export async function executeReadResource(
+  state: McpExtensionState,
+  serverName: string,
+  uri: string,
+  signal?: AbortSignal,
+): Promise<ProxyToolResult> {
+  if (!state.config.mcpServers[serverName]) {
+    return {
+      content: [{ type: "text" as const, text: `Server "${serverName}" not found. Use mcp({}) to see available servers.` }],
+      details: { mode: "resource", error: "not_found", server: serverName, uri },
+    };
+  }
+  if (signal?.aborted) {
+    return {
+      content: [{ type: "text" as const, text: "Resource read cancelled before execution." }],
+      details: { mode: "resource", error: "aborted", server: serverName, uri },
+    };
+  }
+
+  try {
+    if (!state.manager.getConnection(serverName)) {
+      const connected = await lazyConnect(state, serverName);
+      if (!connected) throw new Error(`Server "${serverName}" is not connected`);
+    }
+    const result = await state.manager.readResource(serverName, uri, signal);
+    const converted = resourceContentsToBlocks(result.contents ?? [], `${serverName}-resource`);
+    const capped = capContentBlocks(converted.content, `${serverName}-resource`, state.config.settings).content;
+    return {
+      content: capped.length > 0 ? capped : [{ type: "text" as const, text: "(empty resource)" }],
+      details: { mode: "resource", server: serverName, uri, files: converted.files },
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      content: [{ type: "text" as const, text: `Failed to read resource from "${serverName}": ${message}` }],
+      details: { mode: "resource", error: "read_failed", server: serverName, uri, message },
+    };
+  }
 }
 
 function getAuthFailedMessage(state: McpExtensionState, serverName: string, message: string): string {
@@ -455,8 +496,11 @@ export async function executeList(state: McpExtensionState, server: string): Pro
   const metadata = state.toolMetadata.get(server);
   const toolNames = metadata?.map(m => m.name) ?? [];
   const connection = state.manager.getConnection(server);
+  const resourceTemplates = connection?.resourceTemplates
+    ?? loadMetadataCache()?.servers?.[server]?.resourceTemplates
+    ?? [];
 
-  if (toolNames.length === 0) {
+  if (toolNames.length === 0 && resourceTemplates.length === 0) {
     if (connection?.status === "connected") {
       return {
         content: [{ type: "text" as const, text: `Server "${server}" has no tools.` }],
@@ -492,9 +536,28 @@ export async function executeList(state: McpExtensionState, server: string): Pro
     text += "\n";
   }
 
+  if (resourceTemplates.length > 0) {
+    text += `\nResource templates (read with mcp({ resource: "expanded URI", server: "${server}" })):\n`;
+    for (const template of resourceTemplates) {
+      text += `- ${template.uriTemplate} - ${template.title ?? template.name}`;
+      if (template.description) text += `: ${template.description}`;
+      text += "\n";
+    }
+  }
+
+  const capped = capText(text.trim(), `${server}-list`, state.config.settings);
+
   return {
-    content: [{ type: "text" as const, text: text.trim() }],
-    details: { mode: "list", server, tools: toolNames, count: toolNames.length },
+    content: [{ type: "text" as const, text: capped.text }],
+    details: {
+      mode: "list",
+      server,
+      tools: toolNames,
+      count: toolNames.length,
+      resourceTemplates,
+      truncated: capped.truncated,
+      fullOutputPath: capped.fullOutputPath,
+    },
   };
 }
 
@@ -538,7 +601,18 @@ export async function executeConnect(state: McpExtensionState, serverName: strin
     updateMetadataCache(state, serverName);
     state.failureTracker.delete(serverName);
     updateStatusBar(state);
-    return await executeList(state, serverName);
+    const templateCount = connection.resourceTemplates?.length ?? 0;
+    const text = `Connected to ${serverName} (${metadata.length} tools), with ${connection.resources.length} concrete resources and ${templateCount} resource templates. Use mcp({ search: "query", server: "${serverName}" }) to find tools or mcp({ server: "${serverName}" }) for the full list.`;
+    return {
+      content: [{ type: "text" as const, text }],
+      details: {
+        mode: "connect",
+        server: serverName,
+        count: metadata.length,
+        resourceCount: connection.resources.length,
+        resourceTemplateCount: templateCount,
+      },
+    };
   } catch (error) {
     state.failureTracker.set(serverName, Date.now());
     updateStatusBar(state);
@@ -812,16 +886,7 @@ export async function executeCall(
     state.manager.incrementInFlight(serverName);
 
     if (toolMeta.resourceUri) {
-      const result = await connection.client.readResource({ uri: toolMeta.resourceUri }, { signal });
-      const content = (result.contents ?? []).map(c => ({
-        type: "text" as const,
-        text: "text" in c ? c.text : ("blob" in c ? `[Binary data: ${(c as { mimeType?: string }).mimeType ?? "unknown"}]` : JSON.stringify(c)),
-      }));
-      const capped = capContentBlocks(content, `${serverName}-resource`, state.config.settings).content;
-      return {
-        content: capped.length > 0 ? capped : [{ type: "text" as const, text: "(empty resource)" }],
-        details: { mode: "call", resourceUri: toolMeta.resourceUri, server: serverName },
-      };
+      return executeReadResource(state, serverName, toolMeta.resourceUri, signal);
     }
 
     uiSession = toolMeta.uiResourceUri

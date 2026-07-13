@@ -3,10 +3,16 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
-import type { ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
+import {
+  ErrorCode,
+  McpError,
+  ResourceListChangedNotificationSchema,
+  type ReadResourceResult,
+} from "@modelcontextprotocol/sdk/types.js";
 import type {
   McpTool,
   McpResource,
+  McpResourceTemplate,
   ServerDefinition,
   ServerStreamResultPatchNotification,
   Transport,
@@ -26,9 +32,14 @@ interface ServerConnection {
   definition: ServerDefinition;
   tools: McpTool[];
   resources: McpResource[];
+  resourceTemplates: McpResourceTemplate[];
   lastUsedAt: number;
   inFlight: number;
   status: "connected" | "closed" | "needs-auth";
+}
+
+function isMethodNotFound(error: unknown): boolean {
+  return error instanceof McpError && error.code === ErrorCode.MethodNotFound;
 }
 
 type UiStreamListener = (serverName: string, notification: ServerStreamResultPatchNotification["params"]) => void;
@@ -39,6 +50,7 @@ export class McpServerManager {
   private uiStreamListeners = new Map<string, UiStreamListener>();
   private samplingConfig: ServerSamplingConfig | undefined;
   private elicitationConfig: ServerElicitationConfig | undefined;
+  private resourceListChangedCallback: ((serverName: string) => void) | undefined;
 
   setSamplingConfig(config: ServerSamplingConfig | undefined): void {
     this.samplingConfig = config;
@@ -113,9 +125,10 @@ export class McpServerManager {
       this.attachAdapterNotificationHandlers(name, client);
 
       // Discover tools and resources
-      const [tools, resources] = await Promise.all([
+      const [tools, resources, resourceTemplates] = await Promise.all([
         this.fetchAllTools(client),
         this.fetchAllResources(client),
+        this.fetchAllResourceTemplates(client),
       ]);
       
       return {
@@ -124,6 +137,7 @@ export class McpServerManager {
         definition,
         tools,
         resources,
+        resourceTemplates,
         lastUsedAt: Date.now(),
         inFlight: 0,
         status: "connected",
@@ -141,6 +155,7 @@ export class McpServerManager {
           definition,
           tools: [],
           resources: [],
+          resourceTemplates: [],
           lastUsedAt: Date.now(),
           inFlight: 0,
           status: "needs-auth",
@@ -269,8 +284,30 @@ export class McpServerManager {
       } while (cursor);
       
       return allResources;
-    } catch {
-      // Server may not support resources
+    } catch (error) {
+      if (isMethodNotFound(error)) return [];
+      logger.warn("MCP resource listing failed; continuing without concrete resources", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
+  }
+
+  private async fetchAllResourceTemplates(client: Client): Promise<McpResourceTemplate[]> {
+    try {
+      const allTemplates: McpResourceTemplate[] = [];
+      let cursor: string | undefined;
+      do {
+        const result = await client.listResourceTemplates(cursor ? { cursor } : undefined);
+        allTemplates.push(...(result.resourceTemplates ?? []));
+        cursor = result.nextCursor;
+      } while (cursor);
+      return allTemplates;
+    } catch (error) {
+      if (isMethodNotFound(error)) return [];
+      logger.warn("MCP resource template listing failed; continuing without templates", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return [];
     }
   }
@@ -281,6 +318,25 @@ export class McpServerManager {
       if (!listener) return;
       listener(serverName, notification.params);
     });
+    client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
+      const connection = this.connections.get(serverName);
+      if (!connection || connection.status !== "connected") return;
+      try {
+        const [resources, resourceTemplates] = await Promise.all([
+          this.fetchAllResources(client),
+          this.fetchAllResourceTemplates(client),
+        ]);
+        connection.resources = resources;
+        connection.resourceTemplates = resourceTemplates;
+        this.resourceListChangedCallback?.(serverName);
+      } catch (error) {
+        logger.error(`Failed to refresh resources for ${serverName}`, error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+  }
+
+  setResourceListChangedCallback(callback: (serverName: string) => void): void {
+    this.resourceListChangedCallback = callback;
   }
 
   registerUiStreamListener(streamToken: string, listener: UiStreamListener): void {
@@ -291,7 +347,7 @@ export class McpServerManager {
     this.uiStreamListeners.delete(streamToken);
   }
 
-  async readResource(name: string, uri: string): Promise<ReadResourceResult> {
+  async readResource(name: string, uri: string, signal?: AbortSignal): Promise<ReadResourceResult> {
     const connection = this.connections.get(name);
     if (!connection || connection.status !== "connected") {
       throw new Error(`Server "${name}" is not connected`);
@@ -300,7 +356,7 @@ export class McpServerManager {
     try {
       this.touch(name);
       this.incrementInFlight(name);
-      return await connection.client.readResource({ uri });
+      return await connection.client.readResource({ uri }, { signal });
     } finally {
       this.decrementInFlight(name);
       this.touch(name);

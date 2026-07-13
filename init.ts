@@ -13,6 +13,7 @@ import {
   reconstructToolMetadata,
   saveMetadataCache,
   serializeResources,
+  serializeResourceTemplates,
   serializeTools,
   type ServerCacheEntry,
 } from "./metadata-cache.js";
@@ -75,6 +76,10 @@ export async function initializeMcp(
     ui,
     sendMessage: (message, options) => pi.sendMessage(message, options),
   };
+  manager.setResourceListChangedCallback((serverName) => {
+    updateServerMetadata(state, serverName);
+    updateMetadataCache(state, serverName);
+  });
 
   const serverEntries = Object.entries(config.mcpServers);
   if (serverEntries.length === 0) {
@@ -245,25 +250,17 @@ export function updateMetadataCache(state: McpExtensionState, serverName: string
   if (!definition) return;
 
   const configHash = computeServerHash(definition);
-  const existing = loadMetadataCache();
-  const existingEntry = existing?.servers?.[serverName];
-
   const tools = serializeTools(connection.tools);
-  let resources = definition.exposeResources === false ? [] : serializeResources(connection.resources);
-
-  if (
-    definition.exposeResources !== false &&
-    resources.length === 0 &&
-    existingEntry?.resources?.length &&
-    existingEntry.configHash === configHash
-  ) {
-    resources = existingEntry.resources;
-  }
+  const resources = definition.exposeResources === false ? [] : serializeResources(connection.resources);
+  const resourceTemplates = definition.exposeResources === false
+    ? []
+    : serializeResourceTemplates(connection.resourceTemplates);
 
   const entry: ServerCacheEntry = {
     configHash,
     tools,
     resources,
+    resourceTemplates,
     cachedAt: Date.now(),
   };
 

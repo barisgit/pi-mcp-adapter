@@ -16,6 +16,7 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
     this.connect = vi.fn(async () => undefined);
     this.listTools = vi.fn(async () => ({ tools: [] }));
     this.listResources = vi.fn(async () => ({ resources: [] }));
+    this.listResourceTemplates = vi.fn(async () => ({ resourceTemplates: [] }));
     this.close = vi.fn(async () => undefined);
     mocks.clients.push(this);
   }),

@@ -1,7 +1,7 @@
 import { matchesKey, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { isToolExcluded } from "./types.js";
 import type { McpConfig, McpPanelCallbacks, McpPanelResult, ServerProvenance } from "./types.js";
-import { resourceNameToToolName } from "./resource-tools.js";
+import { resourceToolBaseNames } from "./resource-tools.js";
 import type { MetadataCache, ServerCacheEntry, CachedTool } from "./metadata-cache.js";
 
 interface PanelTheme {
@@ -164,8 +164,10 @@ class McpPanel {
           });
         }
         if (definition.exposeResources !== false) {
-          for (const resource of serverCache.resources ?? []) {
-            const baseName = `get_${resourceNameToToolName(resource.name)}`;
+          const resources = serverCache.resources ?? [];
+          const resourceNames = resourceToolBaseNames(resources, serverCache.tools?.map(tool => tool.name));
+          for (const [index, resource] of resources.entries()) {
+            const baseName = resourceNames[index];
             if (isToolExcluded(baseName, serverName, this.prefix, definition.excludeTools)) {
               continue;
             }
@@ -500,8 +502,10 @@ class McpPanel {
     }
 
     if (server.exposeResources) {
-      for (const resource of entry.resources ?? []) {
-        const baseName = `get_${resourceNameToToolName(resource.name)}`;
+      const resources = entry.resources ?? [];
+      const resourceNames = resourceToolBaseNames(resources, entry.tools?.map(tool => tool.name));
+      for (const [index, resource] of resources.entries()) {
+        const baseName = resourceNames[index];
         if (isToolExcluded(baseName, server.name, this.prefix, server.excludeTools)) {
           continue;
         }
