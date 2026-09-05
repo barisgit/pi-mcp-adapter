@@ -43,11 +43,19 @@ export async function resolveNpxBinary(
 
   if (!parsed) return null;
 
+  const packageName = extractPackageName(parsed.packageSpec);
+  if (!packageName) return null;
+  const unversioned = parsed.packageSpec.trim() === packageName;
+  const requestedVersion = parsed.packageSpec.trim().slice(packageName.length + 1);
+  // Tags and ranges need npm resolution, not a guess from cached versions.
+  if (!unversioned && !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(requestedVersion)) return null;
+
   const cacheKey = JSON.stringify([command, ...args]);
   const cache = loadCache();
   const cached = cache?.entries?.[cacheKey];
 
-  if (cached && Date.now() - cached.resolvedAt < CACHE_TTL_MS && existsSync(cached.resolvedBin)) {
+  // Versioned requests must be checked against the current package manifest.
+  if (unversioned && cached && Date.now() - cached.resolvedAt < CACHE_TTL_MS && existsSync(cached.resolvedBin)) {
     return { binPath: cached.resolvedBin, extraArgs: parsed.extraArgs, isJs: cached.isJs };
   }
 
@@ -164,7 +172,8 @@ function resolveFromNpmCache(packageSpec: string, binName?: string): NpxCacheEnt
   const packageName = extractPackageName(packageSpec);
   if (!packageName) return null;
 
-  const packageDir = findCachedPackageDir(cacheDir, packageName);
+  const requestedVersion = packageSpec.trim().slice(packageName.length + 1) || undefined;
+  const packageDir = findCachedPackageDir(cacheDir, packageName, requestedVersion);
   if (!packageDir) return null;
 
   const packageJsonPath = join(packageDir, "package.json");
@@ -289,7 +298,7 @@ function defaultBinName(packageName: string): string {
   return packageName;
 }
 
-function findCachedPackageDir(cacheDir: string, packageName: string): string | null {
+function findCachedPackageDir(cacheDir: string, packageName: string, requestedVersion?: string): string | null {
   const npxDir = join(cacheDir, "_npx");
   if (!existsSync(npxDir)) return null;
 
@@ -309,6 +318,13 @@ function findCachedPackageDir(cacheDir: string, packageName: string): string | n
   for (const entry of candidates) {
     const pkgDir = join(npxDir, entry.name, "node_modules", ...packagePathParts);
     if (existsSync(join(pkgDir, "package.json"))) {
+      try {
+        const pkg = JSON.parse(readFileSync(join(pkgDir, "package.json"), "utf-8"));
+        if (pkg.name !== packageName) continue;
+        if (requestedVersion && pkg.version !== requestedVersion) continue;
+      } catch {
+        continue;
+      }
       return pkgDir;
     }
   }

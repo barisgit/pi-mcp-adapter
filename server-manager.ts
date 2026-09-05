@@ -47,6 +47,8 @@ type UiStreamListener = (serverName: string, notification: ServerStreamResultPat
 export class McpServerManager {
   private connections = new Map<string, ServerConnection>();
   private connectPromises = new Map<string, Promise<ServerConnection>>();
+  private connectControllers = new Map<string, AbortController>();
+  private closePromises = new Map<string, Promise<void>>();
   private uiStreamListeners = new Map<string, UiStreamListener>();
   private samplingConfig: ServerSamplingConfig | undefined;
   private elicitationConfig: ServerElicitationConfig | undefined;
@@ -73,21 +75,41 @@ export class McpServerManager {
       return existing;
     }
     
-    const promise = this.createConnection(name, definition);
-    this.connectPromises.set(name, promise);
-    
-    try {
-      const connection = await promise;
+    const controller = new AbortController();
+    const { signal } = controller;
+    let onAbort: () => void;
+    const cancelled = new Promise<never>((_resolve, reject) => {
+      onAbort = () => reject(signal.reason);
+      signal.addEventListener("abort", onAbort, { once: true });
+    });
+    const attempt = this.createConnection(name, definition, signal).then(async connection => {
+      if (this.connectPromises.get(name) !== promise) {
+        connection.status = "closed";
+        await connection.client.close().catch(() => {});
+        await connection.transport.close().catch(() => {});
+        throw new Error(`Connection to ${name} was closed`);
+      }
       this.connections.set(name, connection);
       return connection;
-    } finally {
-      this.connectPromises.delete(name);
-    }
+    });
+    // SDK transport startup may ignore cancellation. Reject callers now and
+    // retain the attempt's late-result cleanup rather than waiting for startup.
+    const promise = Promise.race([attempt, cancelled]).finally(() => {
+      signal.removeEventListener("abort", onAbort);
+      if (this.connectPromises.get(name) === promise) {
+        this.connectPromises.delete(name);
+        this.connectControllers.delete(name);
+      }
+    });
+    this.connectPromises.set(name, promise);
+    this.connectControllers.set(name, controller);
+    return promise;
   }
   
   private async createConnection(
     name: string,
-    definition: ServerDefinition
+    definition: ServerDefinition,
+    signal: AbortSignal
   ): Promise<ServerConnection> {
     const client = this.createClient(name);
     
@@ -115,21 +137,29 @@ export class McpServerManager {
       });
     } else if (definition.url) {
       // HTTP transport with fallback
-      transport = await this.createHttpTransport(definition, name);
+      transport = await this.createHttpTransport(definition, name, signal);
     } else {
       throw new Error(`Server ${name} has no command or url`);
     }
     
+    const onAbort = () => {
+      void client.close().catch(() => {});
+      void transport.close().catch(() => {});
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
     try {
-      await client.connect(transport);
+      signal.throwIfAborted();
+      await client.connect(transport, { signal });
+      signal.throwIfAborted();
       this.attachAdapterNotificationHandlers(name, client);
 
       // Discover tools and resources
       const [tools, resources, resourceTemplates] = await Promise.all([
-        this.fetchAllTools(client),
-        this.fetchAllResources(client),
-        this.fetchAllResourceTemplates(client),
+        this.fetchAllTools(client, signal),
+        this.fetchAllResources(client, signal),
+        this.fetchAllResourceTemplates(client, signal),
       ]);
+      signal.throwIfAborted();
       
       return {
         client,
@@ -144,7 +174,7 @@ export class McpServerManager {
       };
     } catch (error) {
       // Check for UnauthorizedError - server requires OAuth
-      if (error instanceof UnauthorizedError && supportsOAuth(definition)) {
+      if (!signal.aborted && error instanceof UnauthorizedError && supportsOAuth(definition)) {
         // Clean up both client and transport before reporting needs-auth.
         await client.close().catch(() => {});
         await transport.close().catch(() => {});
@@ -163,9 +193,10 @@ export class McpServerManager {
       }
       
       // Clean up both client and transport on any error
-      await client.close().catch(() => {});
-      await transport.close().catch(() => {});
+      await Promise.all([client.close().catch(() => {}), transport.close().catch(() => {})]);
       throw error;
+    } finally {
+      signal.removeEventListener("abort", onAbort);
     }
   }
   
@@ -188,7 +219,8 @@ export class McpServerManager {
 
   private async createHttpTransport(
     definition: ServerDefinition, 
-    serverName: string
+    serverName: string,
+    signal: AbortSignal
   ): Promise<Transport> {
     const url = new URL(definition.url!);
     
@@ -235,19 +267,28 @@ export class McpServerManager {
       authProvider,
     });
     
+    // Create a test client to verify the transport works
+    const testClient = new Client({ name: "pi-mcp-probe", version: "2.1.2" });
+    const onAbort = () => {
+      void testClient.close().catch(() => {});
+      void streamableTransport.close().catch(() => {});
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
     try {
-      // Create a test client to verify the transport works
-      const testClient = new Client({ name: "pi-mcp-probe", version: "2.1.2" });
-      await testClient.connect(streamableTransport);
+      signal.throwIfAborted();
+      await testClient.connect(streamableTransport, { signal });
+      signal.throwIfAborted();
       await testClient.close().catch(() => {});
       // Close probe transport before creating fresh one
       await streamableTransport.close().catch(() => {});
       
       // StreamableHTTP works - create fresh transport for actual use
+      signal.throwIfAborted();
       return new StreamableHTTPClientTransport(url, { requestInit, authProvider });
     } catch (error) {
       // StreamableHTTP failed, close and try SSE fallback
-      await streamableTransport.close().catch(() => {});
+      await Promise.all([testClient.close().catch(() => {}), streamableTransport.close().catch(() => {})]);
+      signal.throwIfAborted();
       
       // If this was an UnauthorizedError, don't try SSE - the server needs auth
       if (error instanceof UnauthorizedError) {
@@ -256,15 +297,17 @@ export class McpServerManager {
       
       // SSE is the legacy transport
       return new SSEClientTransport(url, { requestInit, authProvider });
+    } finally {
+      signal.removeEventListener("abort", onAbort);
     }
   }
   
-  private async fetchAllTools(client: Client): Promise<McpTool[]> {
+  private async fetchAllTools(client: Client, signal?: AbortSignal): Promise<McpTool[]> {
     const allTools: McpTool[] = [];
     let cursor: string | undefined;
     
     do {
-      const result = await client.listTools(cursor ? { cursor } : undefined);
+      const result = await client.listTools(cursor ? { cursor } : undefined, { signal });
       allTools.push(...(result.tools ?? []));
       cursor = result.nextCursor;
     } while (cursor);
@@ -272,13 +315,13 @@ export class McpServerManager {
     return allTools;
   }
   
-  private async fetchAllResources(client: Client): Promise<McpResource[]> {
+  private async fetchAllResources(client: Client, signal?: AbortSignal): Promise<McpResource[]> {
     try {
       const allResources: McpResource[] = [];
       let cursor: string | undefined;
       
       do {
-        const result = await client.listResources(cursor ? { cursor } : undefined);
+        const result = await client.listResources(cursor ? { cursor } : undefined, { signal });
         allResources.push(...(result.resources ?? []));
         cursor = result.nextCursor;
       } while (cursor);
@@ -293,12 +336,12 @@ export class McpServerManager {
     }
   }
 
-  private async fetchAllResourceTemplates(client: Client): Promise<McpResourceTemplate[]> {
+  private async fetchAllResourceTemplates(client: Client, signal?: AbortSignal): Promise<McpResourceTemplate[]> {
     try {
       const allTemplates: McpResourceTemplate[] = [];
       let cursor: string | undefined;
       do {
-        const result = await client.listResourceTemplates(cursor ? { cursor } : undefined);
+        const result = await client.listResourceTemplates(cursor ? { cursor } : undefined, { signal });
         allTemplates.push(...(result.resourceTemplates ?? []));
         cursor = result.nextCursor;
       } while (cursor);
@@ -364,20 +407,34 @@ export class McpServerManager {
   }
   
   async close(name: string): Promise<void> {
+    this.connectPromises.delete(name);
+    const controller = this.connectControllers.get(name);
+    this.connectControllers.delete(name);
+    controller?.abort(new Error(`Connection to ${name} was closed`));
     const connection = this.connections.get(name);
-    if (!connection) return;
+    const previousClose = this.closePromises.get(name);
+    if (!connection) return previousClose;
     
     // Delete from map BEFORE async cleanup to prevent a race where a
     // concurrent connect() creates a new connection that our deferred
     // delete() would then remove, orphaning the new server process.
     connection.status = "closed";
     this.connections.delete(name);
-    await connection.client.close().catch(() => {});
-    await connection.transport.close().catch(() => {});
+    const cleanup = (async () => {
+      await connection.client.close().catch(() => {});
+      await connection.transport.close().catch(() => {});
+    })();
+    const promise = Promise.all([previousClose, cleanup]).then(() => {}).finally(() => {
+      if (this.closePromises.get(name) === promise) {
+        this.closePromises.delete(name);
+      }
+    });
+    this.closePromises.set(name, promise);
+    return promise;
   }
   
   async closeAll(): Promise<void> {
-    const names = [...this.connections.keys()];
+    const names = [...new Set([...this.connections.keys(), ...this.connectPromises.keys(), ...this.closePromises.keys()])];
     await Promise.all(names.map(name => this.close(name)));
   }
   
