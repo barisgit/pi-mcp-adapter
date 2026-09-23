@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { homedir, platform } from "node:os";
 import { join } from "node:path";
 import type { McpConfig } from "./types.js";

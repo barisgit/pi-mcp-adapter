@@ -3,8 +3,8 @@ import {
   McpResultComponent,
 } from "../mcp-tool-renderer.js";
 
-vi.mock("@mariozechner/pi-coding-agent", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@mariozechner/pi-coding-agent")>();
+vi.mock("@earendil-works/pi-coding-agent", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@earendil-works/pi-coding-agent")>();
   return {
     ...actual,
     keyHint: (_id: string, description: string) => `Ctrl+O ${description}`,

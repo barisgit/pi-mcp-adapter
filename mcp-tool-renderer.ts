@@ -1,5 +1,5 @@
-import { keyHint, type AgentToolResult, type Theme } from "@mariozechner/pi-coding-agent";
-import { Text, visibleWidth } from "@mariozechner/pi-tui";
+import { keyHint, type AgentToolResult, type Theme } from "@earendil-works/pi-coding-agent";
+import { Text, visibleWidth } from "@earendil-works/pi-tui";
 
 const COLLAPSED_RESULT_LINES = 10;
 const TRUNCATED_SUFFIX = "...";

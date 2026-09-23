@@ -1,4 +1,4 @@
-import { matchesKey, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { ImportKind } from "./types.js";
 import type { ConfigWritePreview, McpDiscoverySummary } from "./config.js";
 import type { McpOnboardingState } from "./onboarding-state.js";
