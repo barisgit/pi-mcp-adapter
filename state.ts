@@ -39,6 +39,8 @@ export interface McpExtensionState {
   openBrowser: (url: string) => Promise<void>;
   ui?: ExtensionContext["ui"];
   sendMessage?: SendMessageFn;
+  /** Set when the session shuts down; background work must stop starting connections. */
+  closed?: boolean;
 }
 
 export function buildMcpRequestMeta(

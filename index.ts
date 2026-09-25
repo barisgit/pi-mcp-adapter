@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ToolInfo } from "@earendil-works/pi-coding-agent";
 import type { McpExtensionState } from "./state.js";
 import { Type } from "typebox";
-import { showStatus, showTools, reconnectServers, authenticateServer, openMcpPanel, openMcpSetup } from "./commands.js";
+import { showStatus, showTools, reconnectServers, authenticateServer, listOAuthServers, openMcpPanel, openMcpSetup } from "./commands.js";
 import { loadMcpConfig } from "./config.js";
 import { buildProxyDescription, createDirectToolExecutor, getMissingConfiguredDirectToolServers, resolveDirectTools } from "./direct-tools.js";
 import { flushMetadataCache, initializeMcp, updateStatusBar } from "./init.js";
@@ -80,6 +80,7 @@ export default function mcpAdapter(pi: ExtensionAPI) {
 
   async function shutdownState(currentState: McpExtensionState | null, reason: string): Promise<void> {
     if (!currentState) return;
+    currentState.closed = true;
 
     if (currentState.uiServer) {
       currentState.uiServer.close(reason);
@@ -296,13 +297,21 @@ export default function mcpAdapter(pi: ExtensionAPI) {
   });
 
   pi.registerCommand("mcp-auth", {
-    description: "Authenticate with an MCP server (OAuth)",
+    description: "Log in to an OAuth MCP server (pick one if no name is given)",
+    getArgumentCompletions: (prefix) => {
+      const state = sharedRuntime.state;
+      if (!state) return null;
+      const items = listOAuthServers(state)
+        .filter(server => server.name.startsWith(prefix.trim()))
+        .map(server => ({
+          value: server.name,
+          label: server.name,
+          description: server.needsAuth ? "needs login" : undefined,
+        }));
+      return items.length > 0 ? items : null;
+    },
     handler: async (args, ctx) => {
-      const serverName = args?.trim();
-      if (!serverName) {
-        if (ctx.hasUI) ctx.ui.notify("Usage: /mcp-auth <server-name>", "error");
-        return;
-      }
+      const serverName = args?.trim() || undefined;
 
       let state: McpExtensionState | null;
       try {
@@ -317,7 +326,7 @@ export default function mcpAdapter(pi: ExtensionAPI) {
         return;
       }
 
-      await authenticateServer(serverName, state.config, ctx);
+      await authenticateServer(state, serverName, ctx);
     },
   });
 

@@ -61,6 +61,7 @@
     "mcp-tool-renderer.ts",
     "lifecycle.ts",
     "metadata-cache.ts",
+    "server-status.ts",
     "host-html-template.ts",
     "ui-resource-handler.ts",
     "consent-manager.ts",

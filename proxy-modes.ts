@@ -2,7 +2,7 @@ import type { AgentToolResult, ToolInfo } from "@earendil-works/pi-coding-agent"
 import { buildMcpRequestMeta, type McpExtensionState } from "./state.js";
 import type { ToolMetadata, McpContent } from "./types.js";
 import { getServerPrefix, parseUiPromptHandoff } from "./types.js";
-import { lazyConnect, updateServerMetadata, updateMetadataCache, getFailureAgeSeconds, updateStatusBar } from "./init.js";
+import { lazyConnect, updateServerMetadata, updateMetadataCache, getFailureAgeSeconds, getServersNeedingAuth, updateStatusBar } from "./init.js";
 import { buildToolMetadata, getToolNames, findToolByName, formatSchema } from "./tool-metadata.js";
 import { loadMetadataCache, isServerCacheValid, reconstructToolMetadata } from "./metadata-cache.js";
 import { transformMcpContent } from "./tool-registrar.js";
@@ -192,6 +192,7 @@ export function executeUiMessages(state: McpExtensionState): ProxyToolResult {
 
 export function executeStatus(state: McpExtensionState): ProxyToolResult {
   const servers: Array<{ name: string; status: string; toolCount: number; failedAgo: number | null }> = [];
+  const needsAuth = new Set(getServersNeedingAuth(state));
 
   for (const name of Object.keys(state.config.mcpServers)) {
     const connection = state.manager.getConnection(name);
@@ -201,7 +202,7 @@ export function executeStatus(state: McpExtensionState): ProxyToolResult {
     let status = "not connected";
     if (connection?.status === "connected") {
       status = "connected";
-    } else if (connection?.status === "needs-auth") {
+    } else if (needsAuth.has(name)) {
       status = "needs-auth";
     } else if (failedAgo !== null) {
       status = "failed";
@@ -222,7 +223,7 @@ export function executeStatus(state: McpExtensionState): ProxyToolResult {
       continue;
     }
     if (server.status === "needs-auth") {
-      text += `⚠ ${server.name} (needs auth)\n`;
+      text += `⚠ ${server.name} (needs auth: user must run /mcp-auth ${server.name}${server.toolCount > 0 ? `; ${server.toolCount} cached tools` : ""})\n`;
       continue;
     }
     if (server.status === "cached") {

@@ -387,7 +387,7 @@ Tool names are tokenized across hyphens, underscores, and camelCase — `context
 | `/mcp tools` | List all tools |
 | `/mcp reconnect` | Reconnect all servers |
 | `/mcp reconnect <server>` | Connect or reconnect a single server |
-| `/mcp-auth <server>` | OAuth setup |
+| `/mcp-auth [server]` | OAuth login; without a name, pick from servers (those needing login first) |
 
 If `settings.autoAuth` is `true`, `mcp({ connect: ... })`, `mcp({ tool: ... })`, and direct tool calls will automatically run OAuth when needed and retry once. In non-interactive sessions, browser-based OAuth still requires running `/mcp-auth <server>` manually.
 

@@ -1,13 +1,12 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { McpExtensionState } from "./state.js";
 import type { ToolMetadata } from "./types.js";
-import { existsSync } from "node:fs";
 import { loadMcpConfig } from "./config.js";
 import { ConsentManager } from "./consent-manager.js";
 import { McpLifecycleManager } from "./lifecycle.js";
 import {
   computeServerHash,
-  getMetadataCachePath,
+  isServerCacheStale,
   isServerCacheValid,
   loadMetadataCache,
   reconstructToolMetadata,
@@ -23,8 +22,12 @@ import { buildToolMetadata, totalToolCount } from "./tool-metadata.js";
 import { UiResourceHandler } from "./ui-resource-handler.js";
 import { openUrl, parallelLimit } from "./utils.js";
 import { getMissingConfiguredDirectToolServers } from "./direct-tools.js";
+import { loadServerStatuses, updateServerStatus } from "./server-status.js";
 
 const FAILURE_BACKOFF_MS = 60 * 1000;
+// A server whose background metadata refresh failed (or needs a login) is
+// retried at most this often, so startups do not keep probing it.
+const METADATA_REFRESH_RETRY_MS = 24 * 60 * 60 * 1000;
 
 export async function initializeMcp(
   pi: ExtensionAPI,
@@ -89,19 +92,7 @@ export async function initializeMcp(
   const idleSetting = typeof config.settings?.idleTimeout === "number" ? config.settings.idleTimeout : 10;
   lifecycle.setGlobalIdleTimeout(idleSetting);
 
-  const cachePath = getMetadataCachePath();
-  const cacheFileExists = existsSync(cachePath);
-  let cache = loadMetadataCache();
-  let bootstrapAll = false;
-
-  if (!cacheFileExists) {
-    bootstrapAll = true;
-    saveMetadataCache({ version: 1, servers: {} });
-  } else if (!cache) {
-    cache = { version: 1, servers: {} };
-    saveMetadataCache(cache);
-  }
-
+  const cache = loadMetadataCache();
   const prefix = config.settings?.toolPrefix ?? "server";
 
   for (const [name, definition] of serverEntries) {
@@ -122,12 +113,10 @@ export async function initializeMcp(
     }
   }
 
-  const startupServers = bootstrapAll
-    ? serverEntries
-    : serverEntries.filter(([, definition]) => {
-        const mode = definition.lifecycle ?? "lazy";
-        return mode === "keep-alive" || mode === "eager";
-      });
+  const startupServers = serverEntries.filter(([, definition]) => {
+    const mode = definition.lifecycle ?? "lazy";
+    return mode === "keep-alive" || mode === "eager";
+  });
 
   if (ctx.hasUI && startupServers.length > 0) {
     ctx.ui.setStatus("mcp", `MCP: connecting to ${startupServers.length} servers...`);
@@ -177,40 +166,6 @@ export async function initializeMcp(
     ctx.ui.notify(msg, "info");
   }
 
-  const envDirect = process.env.MCP_DIRECT_TOOLS;
-  if (envDirect !== "__none__") {
-    const currentCache = loadMetadataCache();
-    const missingCacheServers = getMissingConfiguredDirectToolServers(config, currentCache);
-
-    if (missingCacheServers.length > 0) {
-      const bootstrapResults = await parallelLimit(
-        missingCacheServers.filter(name => !results.some(r => r.name === name && r.connection)),
-        10,
-        async (name) => {
-          const definition = config.mcpServers[name];
-          try {
-            const connection = await manager.connect(name, definition);
-            if (connection.status === "needs-auth") {
-              return { name, ok: false };
-            }
-            const { metadata } = buildToolMetadata(connection.tools, connection.resources, definition, name, prefix);
-            toolMetadata.set(name, metadata);
-            updateMetadataCache(state, name);
-            return { name, ok: true };
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            logger.debug(`MCP: direct-tools bootstrap failed for ${name}: ${message}`);
-            return { name, ok: false };
-          }
-        },
-      );
-      const bootstrapped = bootstrapResults.filter(r => r.ok).map(r => r.name);
-      if (bootstrapped.length > 0 && ctx.hasUI) {
-        ctx.ui.notify(`MCP: direct tools for ${bootstrapped.join(", ")} will be available after restart`, "info");
-      }
-    }
-  }
-
   lifecycle.setReconnectCallback((serverName) => {
     updateServerMetadata(state, serverName);
     updateMetadataCache(state, serverName);
@@ -226,7 +181,86 @@ export async function initializeMcp(
 
   lifecycle.startHealthChecks();
 
+  const directToolServersMissingCache = process.env.MCP_DIRECT_TOOLS === "__none__"
+    ? []
+    : getMissingConfiguredDirectToolServers(config, cache);
+  // Not awaited: tools must be usable while slow or failing servers are probed.
+  void refreshStaleMetadata(state, directToolServersMissingCache).catch(error => {
+    logger.error("MCP: background metadata refresh failed", error instanceof Error ? error : new Error(String(error)));
+  });
+
   return state;
+}
+
+/**
+ * Connect in the background to servers whose cached metadata is missing or stale,
+ * so their tools stay searchable without connecting every server on every startup.
+ * Servers that fail or need a login are retried at most once per
+ * METADATA_REFRESH_RETRY_MS. Lazy servers connected here are closed by the normal
+ * idle timeout. Ends by reporting servers that need a login.
+ */
+async function refreshStaleMetadata(state: McpExtensionState, directToolServersMissingCache: string[]): Promise<void> {
+  const cache = loadMetadataCache();
+  const statuses = loadServerStatuses();
+  const now = Date.now();
+
+  const targets = Object.entries(state.config.mcpServers).filter(([name, definition]) => {
+    if (state.manager.getConnection(name)) return false;
+
+    const entry = cache?.servers?.[name];
+    if (entry && isServerCacheValid(entry, definition) && !isServerCacheStale(entry, now)) return false;
+
+    const lastAttemptAt = statuses[name]?.lastRefreshAttemptAt ?? 0;
+    return now - lastAttemptAt >= METADATA_REFRESH_RETRY_MS;
+  });
+
+  const refreshed = await parallelLimit(targets, 10, async ([name, definition]) => {
+    // The session may have ended while earlier servers were being probed.
+    if (state.closed) return null;
+
+    updateServerStatus(name, { lastRefreshAttemptAt: Date.now() });
+    try {
+      const connection = await state.manager.connect(name, definition);
+      if (connection.status !== "connected") return null;
+      updateServerMetadata(state, name);
+      updateMetadataCache(state, name);
+      return name;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.debug(`MCP: background metadata refresh failed for ${name}: ${message}`);
+      return null;
+    }
+  });
+
+  if (state.closed) return;
+  updateStatusBar(state);
+
+  const ui = state.ui;
+  if (!ui) return;
+
+  const directToolsReady = refreshed.filter((name): name is string => name !== null && directToolServersMissingCache.includes(name));
+  if (directToolsReady.length > 0) {
+    ui.notify(`MCP: direct tools for ${directToolsReady.join(", ")} will be available after restart`, "info");
+  }
+
+  const needsAuth = getServersNeedingAuth(state);
+  if (needsAuth.length > 0) {
+    ui.notify(`MCP: login required for ${needsAuth.join(", ")}. Run /mcp-auth to sign in.`, "warning");
+  }
+}
+
+/**
+ * Servers that need an OAuth login: those refused in this session, plus those
+ * refused in an earlier session and not connected since.
+ */
+export function getServersNeedingAuth(state: McpExtensionState): string[] {
+  const statuses = loadServerStatuses();
+  return Object.keys(state.config.mcpServers).filter(name => {
+    const status = state.manager.getConnection(name)?.status;
+    if (status === "needs-auth") return true;
+    if (status === "connected") return false;
+    return statuses[name]?.needsAuth === true;
+  });
 }
 
 export function updateServerMetadata(state: McpExtensionState, serverName: string): void {
@@ -283,8 +317,17 @@ export function updateStatusBar(state: McpExtensionState): void {
     ui.setStatus("mcp", undefined);
     return;
   }
-  const connectedCount = state.manager.getAllConnections().size;
-  ui.setStatus("mcp", ui.theme.fg("accent", `MCP: ${connectedCount}/${total} servers`));
+
+  const connectedCount = [...state.manager.getAllConnections().values()]
+    .filter(connection => connection.status === "connected")
+    .length;
+  let text = ui.theme.fg("accent", `MCP: ${connectedCount}/${total} servers`);
+
+  const needsAuthCount = getServersNeedingAuth(state).length;
+  if (needsAuthCount > 0) {
+    text += ui.theme.fg("warning", ` · ${needsAuthCount} need login`);
+  }
+  ui.setStatus("mcp", text);
 }
 
 export function getFailureAgeSeconds(state: McpExtensionState, serverName: string): number | null {

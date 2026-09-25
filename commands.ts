@@ -1,6 +1,6 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { BorderedLoader, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { McpExtensionState } from "./state.js";
-import type { McpConfig, ServerEntry, McpPanelCallbacks, McpPanelResult, ImportKind } from "./types.js";
+import type { ServerEntry, McpPanelCallbacks, McpPanelResult, ImportKind } from "./types.js";
 import {
   ensureCompatibilityImports,
   getMcpDiscoverySummary,
@@ -12,7 +12,7 @@ import {
   writeSharedServerEntry,
   writeStarterProjectConfig,
 } from "./config.js";
-import { lazyConnect, updateMetadataCache, updateStatusBar, getFailureAgeSeconds } from "./init.js";
+import { lazyConnect, updateMetadataCache, updateStatusBar, getFailureAgeSeconds, getServersNeedingAuth } from "./init.js";
 import { loadMetadataCache } from "./metadata-cache.js";
 import { buildToolMetadata } from "./tool-metadata.js";
 import { supportsOAuth, authenticate } from "./mcp-auth-flow.js";
@@ -24,6 +24,7 @@ export async function showStatus(state: McpExtensionState, ctx: ExtensionContext
   if (!ctx.hasUI) return;
 
   const lines: string[] = ["MCP Server Status:", ""];
+  const needsAuth = new Set(getServersNeedingAuth(state));
 
   for (const name of Object.keys(state.config.mcpServers)) {
     const connection = state.manager.getConnection(name);
@@ -37,8 +38,8 @@ export async function showStatus(state: McpExtensionState, ctx: ExtensionContext
     if (connection?.status === "connected") {
       status = "connected";
       statusIcon = "✓";
-    } else if (connection?.status === "needs-auth") {
-      status = "needs auth";
+    } else if (needsAuth.has(name)) {
+      status = `needs auth (/mcp-auth ${name})`;
       statusIcon = "⚠";
     } else if (failedAgo !== null) {
       status = `failed ${failedAgo}s ago`;
@@ -136,14 +137,44 @@ export async function reconnectServers(
   updateStatusBar(state);
 }
 
+/** OAuth-capable servers, those needing a login first. */
+export function listOAuthServers(state: McpExtensionState): Array<{ name: string; needsAuth: boolean }> {
+  const needsAuth = new Set(getServersNeedingAuth(state));
+  return Object.entries(state.config.mcpServers)
+    .filter(([, definition]) => supportsOAuth(definition))
+    .map(([name]) => ({ name, needsAuth: needsAuth.has(name) }))
+    .sort((a, b) => Number(b.needsAuth) - Number(a.needsAuth));
+}
+
+/** Let the user pick an OAuth server to log in to when /mcp-auth has no argument. */
+async function pickServerToAuthenticate(state: McpExtensionState, ctx: ExtensionContext): Promise<string | undefined> {
+  const servers = listOAuthServers(state);
+  if (servers.length === 0) {
+    ctx.ui.notify("No OAuth MCP servers are configured.", "info");
+    return undefined;
+  }
+
+  const labels = servers.map(server => server.needsAuth ? `${server.name} (needs login)` : server.name);
+  const choice = await ctx.ui.select("Log in to MCP server", labels);
+  if (choice === undefined) return undefined;
+  return servers[labels.indexOf(choice)]?.name;
+}
+
+/**
+ * Run the OAuth login for a server (prompting for one if none is given), then
+ * reconnect it so its tools and cached metadata are available immediately.
+ */
 export async function authenticateServer(
-  serverName: string,
-  config: McpConfig,
+  state: McpExtensionState,
+  requestedServer: string | undefined,
   ctx: ExtensionContext
 ): Promise<void> {
   if (!ctx.hasUI) return;
 
-  const definition = config.mcpServers[serverName];
+  const serverName = requestedServer || await pickServerToAuthenticate(state, ctx);
+  if (!serverName) return;
+
+  const definition = state.config.mcpServers[serverName];
   if (!definition) {
     ctx.ui.notify(`Server "${serverName}" not found in config`, "error");
     return;
@@ -166,29 +197,44 @@ export async function authenticateServer(
     return;
   }
 
-  try {
-    ctx.ui.setStatus("mcp-auth", `Authenticating ${serverName}...`);
-    const status = await authenticate(serverName, definition.url, definition);
+  const url = definition.url;
 
-    if (status === "authenticated") {
-      ctx.ui.notify(
-        `OAuth authentication successful for "${serverName}"!\n` +
-        `Run /mcp reconnect ${serverName} to connect with the new token.`,
-        "success"
-      );
-    } else {
-      ctx.ui.notify(
-        `OAuth authentication failed for "${serverName}".`,
-        "error"
-      );
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    ctx.ui.notify(`Failed to authenticate "${serverName}": ${message}`, "error");
-  } finally {
-    ctx.ui.setStatus("mcp-auth", undefined);
+  // The browser step can take minutes (up to the callback timeout) and pi blocks
+  // input while a command runs, so show a dialog that Esc cancels.
+  const outcome = await ctx.ui.custom<LoginOutcome>((tui, theme, _keybindings, done) => {
+    let settled = false;
+    const finish = (result: LoginOutcome) => {
+      if (settled) return;
+      settled = true;
+      done(result);
+    };
+
+    const loader = new BorderedLoader(tui, theme, `Finish logging in to ${serverName} in your browser...`);
+    loader.onAbort = () => finish({ kind: "cancelled" });
+
+    authenticate(serverName, url, definition, loader.signal)
+      .then((status) => finish({ kind: "done", status }))
+      .catch((error) => finish({ kind: "error", message: error instanceof Error ? error.message : String(error) }));
+
+    return loader;
+  });
+
+  if (outcome.kind === "cancelled") {
+    ctx.ui.notify(`Login to "${serverName}" cancelled.`, "info");
+  } else if (outcome.kind === "error") {
+    ctx.ui.notify(`Failed to authenticate "${serverName}": ${outcome.message}`, "error");
+  } else if (outcome.status === "authenticated") {
+    ctx.ui.notify(`Logged in to "${serverName}".`, "info");
+    await reconnectServers(state, ctx, serverName);
+  } else {
+    ctx.ui.notify(`OAuth authentication failed for "${serverName}".`, "error");
   }
 }
+
+type LoginOutcome =
+  | { kind: "done"; status: Awaited<ReturnType<typeof authenticate>> }
+  | { kind: "error"; message: string }
+  | { kind: "cancelled" };
 
 export interface PanelFlowResult {
   configChanged: boolean;
@@ -296,7 +342,7 @@ export async function openMcpPanel(
     getConnectionStatus: (serverName: string) => {
       const definition = config.mcpServers[serverName];
       const connection = state.manager.getConnection(serverName);
-      if (connection?.status === "needs-auth") {
+      if (getServersNeedingAuth(state).includes(serverName)) {
         return "needs-auth";
       }
       if (
@@ -320,10 +366,12 @@ export async function openMcpPanel(
   const { createMcpPanel } = await import("./mcp-panel.js");
   let configChanged = false;
 
+  let loginServer: string | undefined;
   await new Promise<void>((resolve) => {
     ctx.ui.custom(
       (tui, _theme, _keybindings, done) => {
         return createMcpPanel(config, cache, provenanceMap, callbacks, tui, (result: McpPanelResult) => {
+          loginServer = result.loginServer;
           if (!result.cancelled && result.changes.size > 0) {
             writePromotedToolsConfig(result.changes, provenanceMap, config);
             configChanged = true;
@@ -339,6 +387,10 @@ export async function openMcpPanel(
 
   if (noticeLines.length > 0 && fingerprint) {
     markSharedConfigHintShown(fingerprint);
+  }
+
+  if (loginServer) {
+    await authenticateServer(state, loginServer, ctx);
   }
 
   return { configChanged };

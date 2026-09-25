@@ -10,7 +10,9 @@ import { resourceToolBaseNames } from "./resource-tools.js";
 import { extractToolUiStreamMode, interpolateEnvRecord, resolveConfigPath } from "./utils.js";
 
 const CACHE_VERSION = 1;
-const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+// Cached metadata stays usable past this age (so tools remain searchable);
+// it only marks the entry for a background refresh.
+const CACHE_REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface CachedTool {
   name: string;
@@ -109,15 +111,15 @@ export function computeServerHash(definition: ServerEntry): string {
   return createHash("sha256").update(normalized).digest("hex");
 }
 
-export function isServerCacheValid(
-  entry: ServerCacheEntry,
-  definition: ServerEntry,
-  maxAgeMs: number = CACHE_MAX_AGE_MS
-): boolean {
+/** Whether the entry describes the server as currently configured. Age does not matter here. */
+export function isServerCacheValid(entry: ServerCacheEntry, definition: ServerEntry): boolean {
   if (!entry || entry.configHash !== computeServerHash(definition)) return false;
   if (!entry.cachedAt || typeof entry.cachedAt !== "number") return false;
-  if (maxAgeMs > 0 && Date.now() - entry.cachedAt > maxAgeMs) return false;
   return true;
+}
+
+export function isServerCacheStale(entry: ServerCacheEntry, now = Date.now()): boolean {
+  return now - entry.cachedAt > CACHE_REFRESH_AFTER_MS;
 }
 
 export function reconstructToolMetadata(

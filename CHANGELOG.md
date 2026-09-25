@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `/mcp-auth` no longer fails forever with "refresh token is invalid" when a server (e.g. Outline) rejects a dead refresh token with `invalid_request` instead of `invalid_grant`; the stale tokens are dropped and a fresh browser login starts. Such rejections during connect now report `needs-auth` instead of failing or falling back to SSE.
+- A pending `/mcp-auth` browser login no longer blocks pi input for up to 5 minutes; it shows a waiting dialog that Esc cancels.
+- Tests no longer write into the real `~/.pi/agent` when `PI_CODING_AGENT_DIR` or `MCP_OAUTH_DIR` is set in the shell.
+
+### Added
+- Servers needing an OAuth login are tracked across sessions (`mcp-server-status.json`) and shown in the status bar, `/mcp`, the `mcp` status output, and a startup warning.
+- `/mcp-auth` without a server name opens a picker (servers needing login first) and completes server names; Enter on a needs-auth server in the `/mcp` panel starts the login. A successful login reconnects the server automatically.
+
 ### Changed
+- Cached tool metadata no longer expires after 7 days, so tools stay searchable. Missing or week-old entries are refreshed in the background at startup instead; servers that fail or need a login are retried at most once a day.
 - MCP proxy `args` now accepts native objects again, while keeping JSON string compatibility and a patternProperties-free schema for provider compatibility.
 - MCP proxy search/list now hydrates cached metadata and lazy-connects explicitly targeted servers, so `mcp({ search, server })` and `mcp({ server })` work before a manual connect.
 - MCP proxy search now ranks exact/all-term tool-name matches ahead of broad description matches and requires all non-server terms when searching within a specific server.

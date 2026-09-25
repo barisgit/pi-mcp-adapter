@@ -416,6 +416,8 @@ export interface McpPanelCallbacks {
 export interface McpPanelResult {
   changes: Map<string, string[]>;
   cancelled: boolean;
+  /** Server the user chose to log in to; the caller runs the OAuth flow after the panel closes. */
+  loginServer?: string;
 }
 
 /**

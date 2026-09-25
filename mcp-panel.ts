@@ -359,7 +359,14 @@ class McpPanel {
       const server = this.servers[item.serverIndex];
       if (item.type === "server") {
         if (server.connectionStatus === "needs-auth") {
-          this.authNotice = `OAuth required — run /mcp-auth ${server.name} after closing this panel`;
+          // The OAuth browser flow cannot run inside the overlay: close it and let
+          // the caller start the login. Pending promotions would be lost, so ask first.
+          if (this.dirty) {
+            this.authNotice = `Save (ctrl+s) or discard changes before logging in to ${server.name}`;
+            return;
+          }
+          this.cleanup();
+          this.done({ cancelled: true, changes: new Map(), loginServer: server.name });
           return;
         }
         server.expanded = !server.expanded;

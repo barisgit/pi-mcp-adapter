@@ -73,7 +73,7 @@ export interface McpOAuthCallbacks {
  */
 export class McpOAuthProvider implements OAuthClientProvider {
   constructor(
-    private serverName: string,
+    readonly serverName: string,
     private serverUrl: string,
     private config: McpOAuthConfig,
     private callbacks: McpOAuthCallbacks,

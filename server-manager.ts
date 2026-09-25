@@ -2,7 +2,6 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import {
   ErrorCode,
   McpError,
@@ -21,7 +20,8 @@ import { serverStreamResultPatchNotificationSchema } from "./types.js";
 import { resolveNpxBinary } from "./npx-resolver.js";
 import { logger } from "./logger.js";
 import { McpOAuthProvider } from "./mcp-oauth-provider.js";
-import { supportsOAuth } from "./mcp-auth-flow.js";
+import { isOAuthRejection, supportsOAuth } from "./mcp-auth-flow.js";
+import { updateServerStatus } from "./server-status.js";
 import { registerSamplingHandler, type ServerSamplingConfig } from "./sampling-handler.js";
 import { registerElicitationHandler, type ServerElicitationConfig } from "./elicitation-handler.js";
 import { interpolateEnvRecord, resolveConfigPath } from "./utils.js";
@@ -90,6 +90,7 @@ export class McpServerManager {
         throw new Error(`Connection to ${name} was closed`);
       }
       this.connections.set(name, connection);
+      updateServerStatus(name, { needsAuth: connection.status === "needs-auth" });
       return connection;
     });
     // SDK transport startup may ignore cancellation. Reject callers now and
@@ -173,8 +174,8 @@ export class McpServerManager {
         status: "connected",
       };
     } catch (error) {
-      // Check for UnauthorizedError - server requires OAuth
-      if (!signal.aborted && error instanceof UnauthorizedError && supportsOAuth(definition)) {
+      // The server requires OAuth, or rejected our stored credentials (e.g. a dead refresh token).
+      if (!signal.aborted && isOAuthRejection(error) && supportsOAuth(definition)) {
         // Clean up both client and transport before reporting needs-auth.
         await client.close().catch(() => {});
         await transport.close().catch(() => {});
@@ -290,8 +291,8 @@ export class McpServerManager {
       await Promise.all([testClient.close().catch(() => {}), streamableTransport.close().catch(() => {})]);
       signal.throwIfAborted();
       
-      // If this was an UnauthorizedError, don't try SSE - the server needs auth
-      if (error instanceof UnauthorizedError) {
+      // If the server needs auth or rejected our credentials, don't try SSE
+      if (isOAuthRejection(error)) {
         throw error;
       }
       

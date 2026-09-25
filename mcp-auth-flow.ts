@@ -9,6 +9,7 @@ import {
   UnauthorizedError,
 } from "@modelcontextprotocol/sdk/client/auth.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
+import { OAuthError, ServerError } from "@modelcontextprotocol/sdk/server/auth/errors.js"
 import open from "open"
 import { McpOAuthProvider, type McpOAuthConfig } from "./mcp-oauth-provider.js"
 import {
@@ -65,6 +66,41 @@ function extractOAuthConfig(definition: ServerEntry): McpOAuthConfig {
 }
 
 /**
+ * True when an OAuth server rejected our credentials (as opposed to a network or
+ * 5xx failure). Stored tokens cannot recover from this; the user must log in again.
+ */
+export function isOAuthRejection(error: unknown): boolean {
+  return error instanceof UnauthorizedError
+    || (error instanceof OAuthError && !(error instanceof ServerError))
+}
+
+/**
+ * Run SDK auth, discarding stored tokens once if the server rejects them.
+ *
+ * The SDK only recovers from a rejected refresh token when the server answers
+ * `invalid_grant`. Some servers (e.g. Outline) answer `invalid_request` instead,
+ * which the SDK rethrows, leaving the dead refresh token on disk so every login
+ * attempt fails with the same error. For a user-initiated login, drop the tokens
+ * and start a fresh authorization instead.
+ */
+async function runAuthDiscardingRejectedTokens(
+  provider: McpOAuthProvider,
+  serverUrl: string,
+): Promise<Awaited<ReturnType<typeof runSdkAuth>>> {
+  try {
+    return await runSdkAuth(provider, { serverUrl })
+  } catch (error) {
+    const hadTokens = Boolean(await provider.tokens())
+    if (!hadTokens || !(error instanceof OAuthError) || error instanceof ServerError) {
+      throw error
+    }
+    logger.warn(`MCP Auth: stored tokens for ${provider.serverName} were rejected; starting a fresh login`)
+    await provider.invalidateCredentials("tokens")
+    return await runSdkAuth(provider, { serverUrl })
+  }
+}
+
+/**
  * Start OAuth authentication flow for a server.
  * Returns the authorization URL when browser authorization is required.
  */
@@ -81,7 +117,7 @@ export async function startAuth(
         throw new Error("Browser redirect is not used for client_credentials flow")
       },
     })
-    const result = await runSdkAuth(authProvider, { serverUrl })
+    const result = await runAuthDiscardingRejectedTokens(authProvider, serverUrl)
     if (result !== "AUTHORIZED") {
       throw new UnauthorizedError("Failed to authorize")
     }
@@ -103,7 +139,7 @@ export async function startAuth(
   })
 
   try {
-    const result = await runSdkAuth(authProvider, { serverUrl })
+    const result = await runAuthDiscardingRejectedTokens(authProvider, serverUrl)
     if (result === "AUTHORIZED") {
       await clearOAuthState(serverName)
       return { authorizationUrl: "" }
@@ -156,6 +192,7 @@ export async function authenticate(
   serverName: string,
   serverUrl: string,
   definition?: ServerEntry,
+  signal?: AbortSignal,
 ): Promise<AuthStatus> {
   const inFlight = pendingAuthentications.get(serverName)
   if (inFlight) {
@@ -180,7 +217,15 @@ export async function authenticate(
     // Register the callback BEFORE opening the browser
     const callbackPromise = waitForCallback(oauthState)
 
+    // Cancelling rejects the pending callback, so the catch below cleans up the
+    // OAuth state and transport just like a timeout would.
+    signal?.addEventListener("abort", () => cancelPendingCallback(oauthState), { once: true })
+
     try {
+      if (signal?.aborted) {
+        throw new Error("Authorization cancelled")
+      }
+
       // Open browser
       try {
         await open(authorizationUrl)
