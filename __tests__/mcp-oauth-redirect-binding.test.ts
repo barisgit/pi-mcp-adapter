@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { auth, UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
+import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { McpOAuthProvider, getOAuthCallbackPort, setOAuthCallbackPort } from "../mcp-oauth-provider.js";
 import { getAuthEntry, saveAuthEntry } from "../mcp-auth.js";
 
@@ -11,6 +12,13 @@ import { getAuthEntry, saveAuthEntry } from "../mcp-auth.js";
 describe("DCR callback binding through SDK auth", () => {
   const serverUrl = "https://example.com/mcp";
   const redirect = "http://localhost:19877/callback";
+  const staleRedirect = "http://localhost:19876/callback";
+  // Object rows: Vitest spreads array rows into arguments, which would turn a
+  // one-element redirect list into a bare string.
+  const staleBindings: { redirectUris: string[] | undefined }[] = [
+    { redirectUris: undefined },
+    { redirectUris: [staleRedirect] },
+  ];
   const originalPort = getOAuthCallbackPort();
   let dir: string;
   let refreshResult: "success" | "invalid_grant" | "server_error";
@@ -34,7 +42,7 @@ describe("DCR callback binding through SDK auth", () => {
     setOAuthCallbackPort(originalPort);
   });
 
-  const fetchFn: typeof fetch = async (input, init) => {
+  const fetchFn: FetchLike = async (input, init) => {
     const url = String(input);
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
       status, headers: { "content-type": "application/json" },
@@ -66,7 +74,7 @@ describe("DCR callback binding through SDK auth", () => {
     throw new Error(`Unexpected request: ${url}`);
   };
 
-  it.each([undefined, ["http://localhost:19876/callback"]])("re-registers a fresh login with legacy or changed binding %j", async redirectUris => {
+  it.each(staleBindings)("re-registers a fresh login with binding $redirectUris", async ({ redirectUris }) => {
     saveAuthEntry("test", { clientInfo: { clientId: "old-client", redirectUris }, oauthState: "state" }, serverUrl);
     expect(await auth(provider, { serverUrl, fetchFn })).toBe("REDIRECT");
     expect(registrations).toBe(1);
@@ -82,7 +90,7 @@ describe("DCR callback binding through SDK auth", () => {
     expect(redirectUrl?.searchParams.get("client_id")).toBe("old-client");
   });
 
-  it.each([undefined, ["http://localhost:19876/callback"]])("refreshes under the original client despite binding %j", async redirectUris => {
+  it.each(staleBindings)("refreshes under the original client despite binding $redirectUris", async ({ redirectUris }) => {
     saveAuthEntry("test", {
       clientInfo: { clientId: "old-client", redirectUris },
       tokens: { accessToken: "old-access", refreshToken: "refresh" },
@@ -96,7 +104,7 @@ describe("DCR callback binding through SDK auth", () => {
   it("re-registers after a rejected refresh instead of authorizing with a stale client", async () => {
     refreshResult = "invalid_grant";
     saveAuthEntry("test", {
-      clientInfo: { clientId: "old-client", redirectUris: ["http://localhost:19876/callback"] },
+      clientInfo: { clientId: "old-client", redirectUris: [staleRedirect] },
       tokens: { accessToken: "old-access", refreshToken: "refresh" }, oauthState: "state",
     }, serverUrl);
     expect(await auth(provider, { serverUrl, fetchFn })).toBe("REDIRECT");

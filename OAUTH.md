@@ -173,7 +173,7 @@ If no `clientId` is provided, the SDK:
    - `grant_types`: `["authorization_code", "refresh_token"]`
 3. Stores the registered client credentials and their `redirectUris` binding
 
-Before a new browser authorization, the cached registration must include the active callback URI. A changed port or a legacy cache without `redirectUris` triggers fresh registration. Existing refresh tokens still use their original client; a callback-port change alone does not discard tokens. If a transient refresh failure would fall through to authorization with an unknown or mismatched binding, the adapter stops without opening an invalid URL or deleting tokens; retry after the authorization server recovers.
+Before a new browser authorization, the cached registration must include the active callback URI. A changed port or a legacy cache without `redirectUris` triggers fresh registration. Existing refresh tokens still use their original client while its client secret has not expired; a callback-port change alone does not discard tokens. If a transient refresh failure would fall through to authorization with an unknown or mismatched binding, the adapter stops without opening an invalid URL or deleting tokens; retry after the authorization server recovers.
 
 ### Callback Server
 

@@ -121,6 +121,10 @@ export class McpOAuthProvider implements OAuthClientProvider {
     }
   }
 
+  /**
+   * Whether a cached registration may start authorization at the active callback URI.
+   * Legacy entries without redirectUris never match; client_credentials has no redirect.
+   */
   private matchesRedirect(clientInfo: StoredClientInfo): boolean {
     const redirectUrl = this.redirectUrl
     return redirectUrl === undefined || clientInfo.redirectUris?.includes(redirectUrl) === true
@@ -128,7 +132,8 @@ export class McpOAuthProvider implements OAuthClientProvider {
 
   /**
    * Get client information (for pre-registered or dynamically registered clients).
-   * Fresh authorization requires a known redirect binding; refresh keeps its original client.
+   * Fresh authorization requires a known redirect binding; refresh keeps its original
+   * client unless that client's secret has expired, which forces registration.
    */
   async clientInformation(): Promise<OAuthClientInformation | undefined> {
     // Check config first (pre-registered client)

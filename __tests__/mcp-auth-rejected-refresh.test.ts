@@ -23,6 +23,7 @@ describe("login with a refresh token the server rejects", () => {
   beforeEach(async () => {
     process.env.MCP_OAUTH_DIR = mkdtempSync(join(tmpdir(), "pi-mcp-rejected-refresh-"));
     vi.resetModules();
+    vi.clearAllMocks();
     tokenErrorCode = "invalid_request";
     tokenStatus = 400;
 
@@ -110,6 +111,28 @@ describe("login with a refresh token the server rejects", () => {
     await startAuth("wiki", serverUrl, { url: serverUrl });
 
     expect(getAuthEntry("wiki")?.tokens?.refreshToken).toBe("dead");
+  });
+
+  it.each([
+    { binding: "legacy", redirectUris: undefined },
+    { binding: "changed", redirectUris: ["http://localhost:1/callback"] },
+  ])("stops a $binding-binding login without a browser when refresh hits a server error", async ({ redirectUris }) => {
+    tokenErrorCode = "server_error";
+    tokenStatus = 500;
+    await storeDeadTokens();
+    const { updateClientInfo, getAuthEntry } = await import("../mcp-auth.ts");
+    updateClientInfo("wiki", { clientId: "client", redirectUris }, serverUrl);
+    const { authenticate } = await import("../mcp-auth-flow.ts");
+    const { UnauthorizedError } = await import("@modelcontextprotocol/sdk/client/auth.js");
+    const { default: open } = await import("open");
+
+    await expect(authenticate("wiki", serverUrl, { url: serverUrl })).rejects.toBeInstanceOf(UnauthorizedError);
+
+    const entry = getAuthEntry("wiki");
+    expect(entry?.tokens?.refreshToken).toBe("dead");
+    expect(entry?.clientInfo).toEqual({ clientId: "client", redirectUris });
+    expect(entry?.oauthState).toBeUndefined();
+    expect(open).not.toHaveBeenCalled();
   });
 
   it("classifies credential rejections separately from server errors", async () => {
