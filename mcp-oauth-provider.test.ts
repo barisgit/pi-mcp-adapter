@@ -102,6 +102,7 @@ describe("McpOAuthProvider", () => {
       saveAuthEntry(serverName, {
         clientInfo: {
           clientId: "stored-client",
+          redirectUris: ["http://localhost:19876/callback"],
           clientSecret: "stored-secret",
           clientIdIssuedAt: Math.floor(Date.now() / 1000),
           clientSecretExpiresAt: Math.floor(Date.now() / 1000) + 3600,
@@ -122,6 +123,7 @@ describe("McpOAuthProvider", () => {
         clientInfo: {
           clientId: "stored-client",
           clientSecret: "stored-secret",
+          redirectUris: ["http://localhost:19876/callback"],
         },
         serverUrl: "https://different.com",
       }, "https://different.com")
@@ -138,6 +140,7 @@ describe("McpOAuthProvider", () => {
         clientInfo: {
           clientId: "stored-client",
           clientSecret: "stored-secret",
+          redirectUris: ["http://localhost:19876/callback"],
           clientSecretExpiresAt: 1, // Expired in 1970
         },
         serverUrl,
@@ -170,6 +173,7 @@ describe("McpOAuthProvider", () => {
       const futureTime = Math.floor(Date.now() / 1000) + 3600
       const info: OAuthClientInformationFull = {
         client_id: "new-client",
+        redirect_uris: ["http://localhost:19876/callback"],
         client_secret: "new-secret",
         client_id_issued_at: Math.floor(Date.now() / 1000),
         client_secret_expires_at: futureTime,
@@ -320,7 +324,7 @@ describe("McpOAuthProvider", () => {
       await provider.saveClientInformation({
         client_id: "client",
         client_secret: "secret",
-        redirect_uris: ["http://localhost/callback"],
+        redirect_uris: ["http://localhost:19876/callback"],
       })
 
       await provider.invalidateCredentials("all")
@@ -340,7 +344,7 @@ describe("McpOAuthProvider", () => {
       await provider.saveClientInformation({
         client_id: "client",
         client_secret: "secret",
-        redirect_uris: ["http://localhost/callback"],
+        redirect_uris: ["http://localhost:19876/callback"],
         client_id_issued_at: Math.floor(Date.now() / 1000),
         client_secret_expires_at: futureTime,
       })
@@ -363,7 +367,7 @@ describe("McpOAuthProvider", () => {
       await provider.saveClientInformation({
         client_id: "client",
         client_secret: "secret",
-        redirect_uris: ["http://localhost/callback"],
+        redirect_uris: ["http://localhost:19876/callback"],
         client_id_issued_at: Math.floor(Date.now() / 1000),
         client_secret_expires_at: futureTime,
       })

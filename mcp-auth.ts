@@ -25,6 +25,7 @@ export interface StoredTokens {
 /** OAuth client information from dynamic or static registration */
 export interface StoredClientInfo {
   clientId: string;
+  redirectUris?: string[]; // Registered DCR redirects; absent in legacy caches
   clientSecret?: string;
   clientIdIssuedAt?: number;
   clientSecretExpiresAt?: number;

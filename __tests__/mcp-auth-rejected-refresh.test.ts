@@ -40,9 +40,16 @@ describe("login with a refresh token the server rejects", () => {
           issuer: base,
           authorization_endpoint: `${base}/authorize`,
           token_endpoint: `${base}/token`,
+          registration_endpoint: `${base}/register`,
           response_types_supported: ["code"],
           code_challenge_methods_supported: ["S256"],
         });
+      }
+      if (req.url === "/register") {
+        let body = "";
+        req.on("data", chunk => { body += chunk; });
+        req.on("end", () => json(201, { ...JSON.parse(body), client_id: "new-client" }));
+        return;
       }
       if (req.url === "/token") {
         // Outline answers a dead refresh token with invalid_request, not invalid_grant.
@@ -61,7 +68,8 @@ describe("login with a refresh token the server rejects", () => {
 
   async function storeDeadTokens() {
     const { updateClientInfo, updateTokens } = await import("../mcp-auth.ts");
-    updateClientInfo("wiki", { clientId: "client" }, serverUrl);
+    const { getOAuthCallbackPort } = await import("../mcp-oauth-provider.ts");
+    updateClientInfo("wiki", { clientId: "client", redirectUris: [`http://localhost:${getOAuthCallbackPort()}/callback`] }, serverUrl);
     updateTokens("wiki", { accessToken: "old", refreshToken: "dead", expiresAt: 1 }, serverUrl);
   }
 
@@ -73,6 +81,20 @@ describe("login with a refresh token the server rejects", () => {
     const { authorizationUrl } = await startAuth("wiki", serverUrl, { url: serverUrl });
 
     expect(authorizationUrl).toContain("/authorize");
+    expect(getAuthEntry("wiki")?.tokens).toBeUndefined();
+  });
+
+  it("re-registers a legacy client after Outline-style invalid_request rejects refresh", async () => {
+    await storeDeadTokens();
+    const { updateClientInfo, getAuthEntry } = await import("../mcp-auth.ts");
+    updateClientInfo("wiki", { clientId: "legacy-client" }, serverUrl);
+    const { startAuth } = await import("../mcp-auth-flow.ts");
+
+    const { authorizationUrl } = await startAuth("wiki", serverUrl, { url: serverUrl });
+
+    const url = new URL(authorizationUrl);
+    expect(url.searchParams.get("client_id")).toBe("new-client");
+    expect(getAuthEntry("wiki")?.clientInfo?.redirectUris).toEqual([url.searchParams.get("redirect_uri")]);
     expect(getAuthEntry("wiki")?.tokens).toBeUndefined();
   });
 

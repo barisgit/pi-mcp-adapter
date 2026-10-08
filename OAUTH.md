@@ -171,7 +171,9 @@ If no `clientId` is provided, the SDK:
    - `client_name`: "Pi Coding Agent"
    - `redirect_uris`: `["http://localhost:<active-callback-port>/callback"]`
    - `grant_types`: `["authorization_code", "refresh_token"]`
-3. Stores the registered client credentials
+3. Stores the registered client credentials and their `redirectUris` binding
+
+Before a new browser authorization, the cached registration must include the active callback URI. A changed port or a legacy cache without `redirectUris` triggers fresh registration. Existing refresh tokens still use their original client; a callback-port change alone does not discard tokens. If a transient refresh failure would fall through to authorization with an unknown or mismatched binding, the adapter stops without opening an invalid URL or deleting tokens; retry after the authorization server recovers.
 
 ### Callback Server
 
@@ -200,7 +202,8 @@ Tokens are stored per-server in `~/.pi/agent/mcp-oauth/<server>/tokens.json`:
   },
   "clientInfo": {
     "clientId": "auto-registered-client-id",
-    "clientSecret": "auto-generated-secret"
+    "clientSecret": "auto-generated-secret",
+    "redirectUris": ["http://localhost:19876/callback"]
   },
   "serverUrl": "https://api.example.com/mcp"
 }

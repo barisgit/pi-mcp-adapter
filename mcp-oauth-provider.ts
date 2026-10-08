@@ -121,9 +121,14 @@ export class McpOAuthProvider implements OAuthClientProvider {
     }
   }
 
+  private matchesRedirect(clientInfo: StoredClientInfo): boolean {
+    const redirectUrl = this.redirectUrl
+    return redirectUrl === undefined || clientInfo.redirectUris?.includes(redirectUrl) === true
+  }
+
   /**
    * Get client information (for pre-registered or dynamically registered clients).
-   * Returns undefined if no client info exists or if the server URL has changed.
+   * Fresh authorization requires a known redirect binding; refresh keeps its original client.
    */
   async clientInformation(): Promise<OAuthClientInformation | undefined> {
     // Check config first (pre-registered client)
@@ -138,6 +143,11 @@ export class McpOAuthProvider implements OAuthClientProvider {
     // Use getAuthForUrl to validate credentials are for the current server URL
     const entry = await getAuthForUrl(this.serverName, this.serverUrl)
     if (entry?.clientInfo) {
+      // Refresh tokens belong to the original client and do not use a redirect URI.
+      // For new authorization, an unknown (legacy) or changed binding requires DCR.
+      if (!entry.tokens?.refreshToken && !this.matchesRedirect(entry.clientInfo)) {
+        return undefined
+      }
       // Check if client secret has expired
       if (entry.clientInfo.clientSecretExpiresAt && entry.clientInfo.clientSecretExpiresAt < Date.now() / 1000) {
         return undefined
@@ -158,6 +168,7 @@ export class McpOAuthProvider implements OAuthClientProvider {
   async saveClientInformation(info: OAuthClientInformationFull): Promise<void> {
     const clientInfo: StoredClientInfo = {
       clientId: info.client_id,
+      redirectUris: info.redirect_uris,
       clientSecret: info.client_secret,
       clientIdIssuedAt: info.client_id_issued_at,
       clientSecretExpiresAt: info.client_secret_expires_at,
@@ -263,6 +274,14 @@ export class McpOAuthProvider implements OAuthClientProvider {
     if (!entry?.oauthState) {
       throw new UnauthorizedError(
         `Re-authentication required for MCP server: ${this.serverName}`,
+      )
+    }
+    // The SDK can fall through after a transient refresh failure. Do not send an
+    // invalid authorization URL or discard potentially usable refresh tokens.
+    const authEntry = await getAuthForUrl(this.serverName, this.serverUrl)
+    if (!this.config.clientId && authEntry?.clientInfo && !this.matchesRedirect(authEntry.clientInfo)) {
+      throw new UnauthorizedError(
+        `Token refresh did not succeed for MCP server: ${this.serverName}; cached OAuth client has an unknown or different callback URI. Retry when the authorization server is available.`,
       )
     }
     return entry.oauthState
