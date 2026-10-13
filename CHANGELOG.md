@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Reduced startup import work with a committed, code-split runtime bundle. Host packages remain external and source-loaded for Pi and fo compatibility; transports, completion providers, and HTML hosting load only when used.
 - Corrected Pi API types for panel completion, direct tool arguments, OAuth narrowing, custom messages, and sampling headers. UI handoffs now use Pi's boolean display flag; proxy argument preparation rejects null and arrays.
 - `/mcp-auth` no longer fails forever with "refresh token is invalid" when a server (e.g. Outline) rejects a dead refresh token with `invalid_request` instead of `invalid_grant`; the stale tokens are dropped and a fresh browser login starts. Such rejections during connect now report `needs-auth` instead of failing or falling back to SSE.
 - A pending `/mcp-auth` browser login no longer blocks pi input for up to 5 minutes; it shows a waiting dialog that Esc cancels.

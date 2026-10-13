@@ -12,7 +12,7 @@ import {
   type UiStreamMode,
 } from "./types.js";
 import { logger } from "./logger.js";
-import { startUiServer, type UiServerHandle } from "./ui-server.js";
+import type { UiServerHandle } from "./ui-server.js";
 import { isGlimpseAvailable, openGlimpseWindow } from "./glimpse-ui.js";
 
 let activeGlimpseWindow: { close(): void } | null = null;
@@ -205,6 +205,8 @@ export async function maybeStartUiSession(
       }
     };
 
+    // HTML hosting is needed only when a tool actually opens an MCP app.
+    const { startUiServer } = await import("./ui-server.js");
     handle = await startUiServer({
       serverName: request.serverName,
       toolName: request.toolName,

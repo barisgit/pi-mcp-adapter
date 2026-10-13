@@ -1,4 +1,4 @@
-import { complete, type AssistantMessage, type Message, type Model, type ProviderStreamOptions, type TextContent } from "@earendil-works/pi-ai/compat";
+import type { AssistantMessage, Message, Model, ProviderStreamOptions, TextContent } from "@earendil-works/pi-ai/compat";
 import { truncateAtWord } from "./utils.js";
 import type { ExtensionUIContext, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -57,6 +57,8 @@ export async function handleSamplingRequest(
     formatRequestApproval(options.serverName, `${model.provider}/${model.id}`, params.systemPrompt, messages),
   );
 
+  // Sampling is optional: load completion providers only after the request is approved.
+  const { complete } = await import("@earendil-works/pi-ai/compat");
   const result = await complete(
     model,
     {

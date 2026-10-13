@@ -10,11 +10,13 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "pretest": "npm run typecheck",
+    "pretest": "npm run typecheck && npm run build:check",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:oauth-provider": "node --import tsx --test mcp-oauth-provider.test.ts"
+    "test:oauth-provider": "node --import tsx --test mcp-oauth-provider.test.ts",
+    "build": "node scripts/build.mjs",
+    "build:check": "node scripts/build.mjs --check"
   },
   "repository": {
     "type": "git",
@@ -33,7 +35,7 @@
   ],
   "pi": {
     "extensions": [
-      "./index.ts"
+      "./dist/index.ts"
     ],
     "video": "https://github.com/nicobailon/pi-mcp-adapter/raw/refs/heads/main/pi-mcp.mp4"
   },
@@ -81,7 +83,9 @@
     "app-bridge.bundle.js",
     "README.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "dist",
+    "scripts/build.mjs"
   ],
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "^1.2.2",
@@ -106,6 +110,7 @@
     "@earendil-works/pi-ai": "0.87.1",
     "@earendil-works/pi-coding-agent": "0.87.1",
     "@earendil-works/pi-tui": "0.87.1",
-    "typebox": "^1.1.24"
+    "typebox": "^1.1.24",
+    "esbuild": "0.28.2"
   }
 }

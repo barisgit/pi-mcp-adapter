@@ -8,9 +8,8 @@ import {
   auth as runSdkAuth,
   UnauthorizedError,
 } from "@modelcontextprotocol/sdk/client/auth.js"
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
+import type { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import { OAuthError, ServerError } from "@modelcontextprotocol/sdk/server/auth/errors.js"
-import open from "open"
 import { McpOAuthProvider, type McpOAuthConfig } from "./mcp-oauth-provider.js"
 import {
   ensureCallbackServer,
@@ -147,6 +146,7 @@ export async function startAuth(
     if (!capturedUrl) {
       throw new UnauthorizedError("OAuth authorization URL was not provided")
     }
+    const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js")
     pendingTransports.set(
       serverName,
       new StreamableHTTPClientTransport(new URL(serverUrl), { authProvider }),
@@ -228,6 +228,7 @@ export async function authenticate(
 
       // Open browser
       try {
+        const { default: open } = await import("open")
         await open(authorizationUrl)
       } catch (error) {
         logger.warn(`MCP Auth: Failed to open browser for ${serverName}`, { error })

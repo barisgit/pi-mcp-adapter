@@ -1,7 +1,4 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import {
   ErrorCode,
   McpError,
@@ -129,6 +126,8 @@ export class McpServerManager {
         }
       }
 
+      // Most servers stay lazy; transport dependencies belong to connection time.
+      const { StdioClientTransport } = await import("@modelcontextprotocol/sdk/client/stdio.js");
       transport = new StdioClientTransport({
         command,
         args,
@@ -223,6 +222,8 @@ export class McpServerManager {
     serverName: string,
     signal: AbortSignal
   ): Promise<Transport> {
+    const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
+    signal.throwIfAborted();
     const url = new URL(definition.url!);
     
     // Build headers first (including any bearer token)
@@ -296,7 +297,9 @@ export class McpServerManager {
         throw error;
       }
       
-      // SSE is the legacy transport
+      // Load the legacy transport only when the modern transport fails.
+      const { SSEClientTransport } = await import("@modelcontextprotocol/sdk/client/sse.js");
+      signal.throwIfAborted();
       return new SSEClientTransport(url, { requestInit, authProvider });
     } finally {
       signal.removeEventListener("abort", onAbort);

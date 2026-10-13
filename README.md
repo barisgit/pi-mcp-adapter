@@ -410,3 +410,15 @@ Install development dependencies with `npm install`. Run `npm test` for the repo
 
 - Cross-session server sharing not yet implemented (each Pi session runs its own server processes)
 - MCP sampling support is text-only; context inclusion, tools, stop sequences, audio, and image content are rejected with explicit errors.
+
+## Development
+
+Run `npm ci`, then `npm test` for typechecking, bundle freshness, and tests.
+After changing runtime source, run `npm run build` and commit `dist/` with it.
+Git installs use the committed bundle and require no build or dev dependencies.
+
+The generated entry and chunks retain a `.ts` extension so Pi's loader applies
+host aliases instead of resolving a second native host dependency graph. npm
+packages remain external; code splitting keeps panels and HTML hosting off the
+startup path. Use `pi --no-extensions -e .` to test the shipped entry; `-e index.ts`
+loads the unbundled development source.

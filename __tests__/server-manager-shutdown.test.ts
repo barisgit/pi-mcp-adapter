@@ -81,6 +81,7 @@ describe("McpServerManager teardown", () => {
   it("keeps normal HTTP probing and connection reuse working", async () => {
     const manager = new McpServerManager();
     const result = manager.connect("demo", { url: "https://example.invalid/mcp", oauth: false });
+    await vi.waitFor(() => expect(mocks.clients).toHaveLength(2));
     mocks.clients[1].ready.resolve();
     await vi.waitFor(() => expect(mocks.clients[0].connect).toHaveBeenCalled());
     mocks.clients[0].ready.resolve();
@@ -143,6 +144,7 @@ describe("McpServerManager teardown", () => {
   it("cancels a hung HTTP probe and closes its late success without fallback or a fresh transport", async () => {
     const manager = new McpServerManager();
     const result = manager.connect("demo", { url: "https://example.invalid/mcp", oauth: false }).catch(error => error);
+    await vi.waitFor(() => expect(mocks.clients).toHaveLength(2));
     const probe = mocks.clients[1];
     await manager.closeAll();
     expect(await result).toBeInstanceOf(Error);
@@ -162,6 +164,7 @@ describe("McpServerManager teardown", () => {
     const client = mocks.clients[0];
     const closing = deferred();
     client.close.mockImplementation(() => closing.promise);
+    await vi.waitFor(() => expect(client.connect).toHaveBeenCalled());
     await manager.closeAll();
     await expect(first).resolves.toBeInstanceOf(Error);
     expect(await second).toBeInstanceOf(Error);
@@ -176,6 +179,7 @@ describe("McpServerManager teardown", () => {
   it.each(["close", "closeAll"] as const)("%s rejects and closes a late connection without replacing a reconnect", async method => {
     const manager = new McpServerManager();
     const old = manager.connect("demo", { command: "fake" }).catch(error => error);
+    await vi.waitFor(() => expect(mocks.clients[0].connect).toHaveBeenCalled());
     await manager[method]("demo");
     const current = manager.connect("demo", { command: "fake" });
     mocks.clients.at(-1).ready.resolve();
