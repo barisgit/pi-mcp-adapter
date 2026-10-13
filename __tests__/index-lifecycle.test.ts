@@ -290,6 +290,8 @@ describe("mcpAdapter session lifecycle", () => {
 
     const proxyTool = api.registerTool.mock.calls.find((call: any[]) => call[0].name === "mcp")?.[0];
 
+    expect(() => proxyTool.prepareArguments(null)).toThrow("Invalid args: expected a JSON object, got null");
+    expect(() => proxyTool.prepareArguments([])).toThrow("Invalid args: expected a JSON object, got array");
     expect(() => proxyTool.prepareArguments({ args: "{" })).toThrow(/Invalid args JSON:/);
     expect(() => proxyTool.prepareArguments({ args: "[]" })).toThrow("Invalid args: expected a JSON object, got array");
     expect(() => proxyTool.prepareArguments({ args: 1 })).toThrow("Invalid args: expected a JSON object, got number");

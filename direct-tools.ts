@@ -1,4 +1,5 @@
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { TUnsafe } from "typebox";
 import { buildMcpRequestMeta, type McpExtensionState } from "./state.js";
 import type { DirectToolSpec, McpConfig, McpContent } from "./types.js";
 import type { MetadataCache } from "./metadata-cache.js";
@@ -310,7 +311,8 @@ export function buildProxyDescription(
   return desc;
 }
 
-type DirectToolExecute = ToolDefinition["execute"];
+// Match the object-valued schema used when registering dynamic MCP tools.
+type DirectToolExecute = ToolDefinition<TUnsafe<Record<string, unknown>>>["execute"];
 
 export function createDirectToolExecutor(
   getState: () => McpExtensionState | null,

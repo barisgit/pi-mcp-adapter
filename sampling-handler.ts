@@ -1,4 +1,4 @@
-import { complete, type AssistantMessage, type Message, type Model, type TextContent } from "@earendil-works/pi-ai/compat";
+import { complete, type AssistantMessage, type Message, type Model, type ProviderStreamOptions, type TextContent } from "@earendil-works/pi-ai/compat";
 import { truncateAtWord } from "./utils.js";
 import type { ExtensionUIContext, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -117,7 +117,7 @@ function messageText(message: Message): string {
 async function resolveSamplingModel(options: SamplingHandlerOptions): Promise<{
   model: Model<any>;
   apiKey?: string;
-  headers?: Record<string, string>;
+  headers?: ProviderStreamOptions["headers"];
 }> {
   const candidates: Model<any>[] = [];
   const currentModel = options.getCurrentModel();

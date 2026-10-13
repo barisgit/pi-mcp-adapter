@@ -308,10 +308,10 @@ export async function openMcpSetup(
   };
 
   return new Promise<PanelFlowResult>((resolve) => {
-    ctx.ui.custom(
+    ctx.ui.custom<void>(
       (tui, _theme, _keybindings, done) => {
         return createMcpSetupPanel(discovery, callbacks, { mode, onboardingState }, tui, () => {
-          done();
+          done(undefined);
           resolve({ configChanged });
         });
       },
@@ -368,7 +368,7 @@ export async function openMcpPanel(
 
   let loginServer: string | undefined;
   await new Promise<void>((resolve) => {
-    ctx.ui.custom(
+    ctx.ui.custom<void>(
       (tui, _theme, _keybindings, done) => {
         return createMcpPanel(config, cache, provenanceMap, callbacks, tui, (result: McpPanelResult) => {
           loginServer = result.loginServer;
@@ -377,7 +377,7 @@ export async function openMcpPanel(
             configChanged = true;
             ctx.ui.notify("MCP tool schemas updated. Pi will reload after this panel closes.", "info");
           }
-          done();
+          done(undefined);
           resolve();
         }, { noticeLines });
       },

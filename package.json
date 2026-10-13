@@ -9,6 +9,8 @@
     "pi-mcp-adapter": "cli.js"
   },
   "scripts": {
+    "typecheck": "tsc --noEmit",
+    "pretest": "npm run typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

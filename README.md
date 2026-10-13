@@ -402,6 +402,10 @@ If `settings.autoAuth` is `true`, `mcp({ connect: ... })`, `mcp({ tool: ... })`,
 - Keep-alive servers get health checks and auto-reconnect
 - Specific tool schemas can be preloaded into the single `mcp` description via `promotedTools`, without registering native Pi tools
 
+## Development
+
+Install development dependencies with `npm install`. Run `npm test` for the repository gate: its `pretest` hook runs strict TypeScript checking before Vitest. Use `npm run typecheck` to check types alone. Pi git-package installs omit development dependencies, so run these checks in a development checkout.
+
 ## Limitations
 
 - Cross-session server sharing not yet implemented (each Pi session runs its own server processes)

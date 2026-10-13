@@ -36,6 +36,13 @@ function getJsonType(value: unknown): string {
   return typeof value;
 }
 
+function requireProxyToolArgs(value: unknown): ProxyToolArgs {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`Invalid args: expected a JSON object, got ${getJsonType(value)}`);
+  }
+  return value as ProxyToolArgs;
+}
+
 function normalizeProxyToolArgs(args: unknown): ProxyToolArgs {
   let normalized = args;
   if (typeof args === "string") {
@@ -49,17 +56,11 @@ function normalizeProxyToolArgs(args: unknown): ProxyToolArgs {
     }
   }
 
-  if (typeof normalized !== "object" || normalized === null || Array.isArray(normalized)) {
-    throw new Error(`Invalid args: expected a JSON object, got ${getJsonType(normalized)}`);
-  }
-
-  return normalized as ProxyToolArgs;
+  return requireProxyToolArgs(normalized);
 }
 
-function prepareMcpProxyArguments(raw: unknown) {
-  if (!raw || typeof raw !== "object") return raw;
-
-  const params = raw as { args?: unknown; [key: string]: unknown };
+function prepareMcpProxyArguments(raw: unknown): ProxyToolArgs {
+  const params = requireProxyToolArgs(raw);
   if (params.args === undefined) return params;
 
   return {

@@ -140,7 +140,7 @@ export async function initializeMcp(
       if (ctx.hasUI) {
         ctx.ui.notify(`MCP: Failed to connect to ${name}: ${error}`, "error");
       }
-      logger.error(`MCP: Failed to connect to ${name}`, error instanceof Error ? error : new Error(String(error)));
+      logger.error(`MCP: Failed to connect to ${name}`, new Error(error ?? "Connection unavailable"));
       continue;
     }
 

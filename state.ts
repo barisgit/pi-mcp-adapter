@@ -1,4 +1,4 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { ConsentManager } from "./consent-manager.js";
 import type { McpLifecycleManager } from "./lifecycle.js";
 import type { McpServerManager } from "./server-manager.js";
@@ -15,15 +15,8 @@ export interface CompletedUiSession {
   stream?: UiStreamSummary;
 }
 
-export type SendMessageFn = (
-  message: {
-    customType: string;
-    content: Array<{ type: string; text: string }>;
-    display?: string;
-    details?: unknown;
-  },
-  options?: { triggerTurn?: boolean }
-) => void;
+/** Preserve Pi's custom-message content, display, and delivery contract. */
+export type SendMessageFn = ExtensionAPI["sendMessage"];
 
 export interface McpExtensionState {
   manager: McpServerManager;

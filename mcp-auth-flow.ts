@@ -28,7 +28,7 @@ import {
   clearOAuthState,
   type StoredTokens,
 } from "./mcp-auth.js"
-import type { ServerEntry } from "./types.js"
+import type { OAuthConfig, ServerEntry } from "./types.js"
 import { logger } from "./logger.js"
 
 /** Auth status for a server */
@@ -365,7 +365,7 @@ export async function removeAuth(serverName: string): Promise<void> {
  * @param definition - The server definition
  * @returns True if OAuth is supported
  */
-export function supportsOAuth(definition: ServerEntry): boolean {
+export function supportsOAuth(definition: ServerEntry): definition is ServerEntry & { oauth?: OAuthConfig } {
   // OAuth requires a URL
   if (!definition.url) return false
   
