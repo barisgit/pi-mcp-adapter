@@ -1,4 +1,22 @@
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { preProcessFile } from "typescript";
 import { expect, it, vi } from "vitest";
+
+it("uses exact TypeScript paths in source and runtime bundle imports", () => {
+  const root = resolve(import.meta.dirname, "..");
+  for (const directory of [root, resolve(root, "dist")]) {
+    const files = readdirSync(directory).filter(name => name.endsWith(".ts") && !name.endsWith(".test.ts"));
+    for (const name of files) {
+      const file = resolve(directory, name);
+      const { importedFiles } = preProcessFile(readFileSync(file, "utf8"));
+      for (const { fileName } of importedFiles.filter(imported => /^\.\.?\//.test(imported.fileName))) {
+        expect(fileName, `${file}: ${fileName}`).toMatch(/\.ts$/);
+        expect(existsSync(resolve(dirname(file), fileName)), `${file}: ${fileName}`).toBe(true);
+      }
+    }
+  }
+});
 
 const loaded = vi.hoisted(() => vi.fn());
 
@@ -14,7 +32,7 @@ vi.mock("@modelcontextprotocol/sdk/client/streamableHttp.js", () => {
   loaded("HTTP transport");
   return { StreamableHTTPClientTransport: vi.fn() };
 });
-vi.mock("../ui-server.js", () => {
+vi.mock("../ui-server.ts", () => {
   loaded("HTML host");
   return { startUiServer: vi.fn() };
 });

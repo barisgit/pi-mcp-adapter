@@ -11,8 +11,8 @@
 
 import { mkdirSync, readFileSync, writeFileSync, existsSync, rmSync } from 'fs';
 import { join } from 'path';
-import { getAgentPath } from './agent-dir.js';
-import { logger } from './logger.js';
+import { getAgentPath } from './agent-dir.ts';
+import { logger } from './logger.ts';
 
 /** OAuth token storage format */
 export interface StoredTokens {

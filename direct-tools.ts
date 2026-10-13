@@ -1,19 +1,19 @@
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { TUnsafe } from "typebox";
-import { buildMcpRequestMeta, type McpExtensionState } from "./state.js";
-import type { DirectToolSpec, McpConfig, McpContent } from "./types.js";
-import type { MetadataCache } from "./metadata-cache.js";
-import { lazyConnect, getFailureAgeSeconds } from "./init.js";
-import { isServerCacheValid } from "./metadata-cache.js";
-import { formatSchema } from "./tool-metadata.js";
-import { transformMcpContent } from "./tool-registrar.js";
-import { capContentBlocks, capText } from "./response-cap.js";
-import { maybeStartUiSession, type UiSessionRuntime } from "./ui-session.js";
-import { formatToolName, getEffectiveToolDescription, isToolExcluded } from "./types.js";
-import { resourceContentsToBlocks, resourceToolBaseNames } from "./resource-tools.js";
-import { authenticate, supportsOAuth } from "./mcp-auth-flow.js";
-import { formatAuthRequiredMessage } from "./utils.js";
-import { logger } from "./logger.js";
+import { buildMcpRequestMeta, type McpExtensionState } from "./state.ts";
+import type { DirectToolSpec, McpConfig, McpContent } from "./types.ts";
+import type { MetadataCache } from "./metadata-cache.ts";
+import { lazyConnect, getFailureAgeSeconds } from "./init.ts";
+import { isServerCacheValid } from "./metadata-cache.ts";
+import { formatSchema } from "./tool-metadata.ts";
+import { transformMcpContent } from "./tool-registrar.ts";
+import { capContentBlocks, capText } from "./response-cap.ts";
+import { maybeStartUiSession, type UiSessionRuntime } from "./ui-session.ts";
+import { formatToolName, getEffectiveToolDescription, isToolExcluded } from "./types.ts";
+import { resourceContentsToBlocks, resourceToolBaseNames } from "./resource-tools.ts";
+import { authenticate, supportsOAuth } from "./mcp-auth-flow.ts";
+import { formatAuthRequiredMessage } from "./utils.ts";
+import { logger } from "./logger.ts";
 
 const BUILTIN_NAMES = new Set(["read", "bash", "edit", "write", "grep", "find", "ls", "mcp"]);
 

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, rmSync } from "node:fs";
-import { executeCall, executeConnect, executeDescribe, executeList, executeReadResource, executeSearch } from "../proxy-modes.js";
-import { buildToolMetadata } from "../tool-metadata.js";
-import type { McpExtensionState } from "../state.js";
+import { executeCall, executeConnect, executeDescribe, executeList, executeReadResource, executeSearch } from "../proxy-modes.ts";
+import { buildToolMetadata } from "../tool-metadata.ts";
+import type { McpExtensionState } from "../state.ts";
 
 function createState(): McpExtensionState {
   return {

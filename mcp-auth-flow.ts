@@ -10,13 +10,13 @@ import {
 } from "@modelcontextprotocol/sdk/client/auth.js"
 import type { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import { OAuthError, ServerError } from "@modelcontextprotocol/sdk/server/auth/errors.js"
-import { McpOAuthProvider, type McpOAuthConfig } from "./mcp-oauth-provider.js"
+import { McpOAuthProvider, type McpOAuthConfig } from "./mcp-oauth-provider.ts"
 import {
   ensureCallbackServer,
   waitForCallback,
   cancelPendingCallback,
   stopCallbackServer,
-} from "./mcp-callback-server.js"
+} from "./mcp-callback-server.ts"
 import {
   getAuthForUrl,
   isTokenExpired,
@@ -26,9 +26,9 @@ import {
   getOAuthState,
   clearOAuthState,
   type StoredTokens,
-} from "./mcp-auth.js"
-import type { OAuthConfig, ServerEntry } from "./types.js"
-import { logger } from "./logger.js"
+} from "./mcp-auth.ts"
+import type { OAuthConfig, ServerEntry } from "./types.ts"
+import { logger } from "./logger.ts"
 
 /** Auth status for a server */
 export type AuthStatus = "authenticated" | "expired" | "not_authenticated"

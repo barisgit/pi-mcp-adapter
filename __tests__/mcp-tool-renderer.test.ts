@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   McpResultComponent,
-} from "../mcp-tool-renderer.js";
+} from "../mcp-tool-renderer.ts";
 
 vi.mock("@earendil-works/pi-coding-agent", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@earendil-works/pi-coding-agent")>();

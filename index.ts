@@ -1,16 +1,16 @@
 import type { ExtensionAPI, ToolInfo } from "@earendil-works/pi-coding-agent";
-import type { McpExtensionState } from "./state.js";
+import type { McpExtensionState } from "./state.ts";
 import { Type } from "typebox";
-import { showStatus, showTools, reconnectServers, authenticateServer, listOAuthServers, openMcpPanel, openMcpSetup } from "./commands.js";
-import { loadMcpConfig } from "./config.js";
-import { buildProxyDescription, createDirectToolExecutor, getMissingConfiguredDirectToolServers, resolveDirectTools } from "./direct-tools.js";
-import { flushMetadataCache, initializeMcp, updateStatusBar } from "./init.js";
-import { loadMetadataCache } from "./metadata-cache.js";
-import { executeCall, executeConnect, executeDescribe, executeList, executeReadResource, executeSearch, executeStatus, executeUiMessages } from "./proxy-modes.js";
-import { getConfigPathFromArgv, truncateAtWord } from "./utils.js";
-import { initializeOAuth, shutdownOAuth } from "./mcp-auth-flow.js";
-import { McpCallComponent, McpResultComponent } from "./mcp-tool-renderer.js";
-import { logger } from "./logger.js";
+import { showStatus, showTools, reconnectServers, authenticateServer, listOAuthServers, openMcpPanel, openMcpSetup } from "./commands.ts";
+import { loadMcpConfig } from "./config.ts";
+import { buildProxyDescription, createDirectToolExecutor, getMissingConfiguredDirectToolServers, resolveDirectTools } from "./direct-tools.ts";
+import { flushMetadataCache, initializeMcp, updateStatusBar } from "./init.ts";
+import { loadMetadataCache } from "./metadata-cache.ts";
+import { executeCall, executeConnect, executeDescribe, executeList, executeReadResource, executeSearch, executeStatus, executeUiMessages } from "./proxy-modes.ts";
+import { getConfigPathFromArgv, truncateAtWord } from "./utils.ts";
+import { initializeOAuth, shutdownOAuth } from "./mcp-auth-flow.ts";
+import { McpCallComponent, McpResultComponent } from "./mcp-tool-renderer.ts";
+import { logger } from "./logger.ts";
 
 interface SharedMcpRuntime {
   state: McpExtensionState | null;

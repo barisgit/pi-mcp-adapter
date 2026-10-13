@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type { McpExtensionState } from "./state.js";
+import type { McpExtensionState } from "./state.ts";
 import {
   extractUiPromptText,
   UI_STREAM_HOST_CONTEXT_KEY,
@@ -10,10 +10,10 @@ import {
   type UiMessageParams,
   type UiModelContextParams,
   type UiStreamMode,
-} from "./types.js";
-import { logger } from "./logger.js";
-import type { UiServerHandle } from "./ui-server.js";
-import { isGlimpseAvailable, openGlimpseWindow } from "./glimpse-ui.js";
+} from "./types.ts";
+import { logger } from "./logger.ts";
+import type { UiServerHandle } from "./ui-server.ts";
+import { isGlimpseAvailable, openGlimpseWindow } from "./glimpse-ui.ts";
 
 let activeGlimpseWindow: { close(): void } | null = null;
 
@@ -206,7 +206,7 @@ export async function maybeStartUiSession(
     };
 
     // HTML hosting is needed only when a tool actually opens an MCP app.
-    const { startUiServer } = await import("./ui-server.js");
+    const { startUiServer } = await import("./ui-server.ts");
     handle = await startUiServer({
       serverName: request.serverName,
       toolName: request.toolName,

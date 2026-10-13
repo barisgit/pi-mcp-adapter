@@ -1,8 +1,8 @@
 import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { isToolExcluded } from "./types.js";
-import type { McpConfig, McpPanelCallbacks, McpPanelResult, ServerProvenance } from "./types.js";
-import { resourceToolBaseNames } from "./resource-tools.js";
-import type { MetadataCache, ServerCacheEntry, CachedTool } from "./metadata-cache.js";
+import { isToolExcluded } from "./types.ts";
+import type { McpConfig, McpPanelCallbacks, McpPanelResult, ServerProvenance } from "./types.ts";
+import { resourceToolBaseNames } from "./resource-tools.ts";
+import type { MetadataCache, ServerCacheEntry, CachedTool } from "./metadata-cache.ts";
 
 interface PanelTheme {
   border: string;

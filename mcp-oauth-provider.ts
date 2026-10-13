@@ -25,7 +25,7 @@ import {
   clearTokens,
   type StoredTokens,
   type StoredClientInfo,
-} from "./mcp-auth.js"
+} from "./mcp-auth.ts"
 
 // Callback server configuration
 const DEFAULT_OAUTH_CALLBACK_PORT = 19876

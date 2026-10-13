@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { findToolByName } from "../tool-metadata.js";
-import type { ToolMetadata } from "../types.js";
+import { findToolByName } from "../tool-metadata.ts";
+import type { ToolMetadata } from "../types.ts";
 
 const metadata: ToolMetadata[] = [
   {

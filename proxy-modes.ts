@@ -1,16 +1,16 @@
 import type { AgentToolResult, ToolInfo } from "@earendil-works/pi-coding-agent";
-import { buildMcpRequestMeta, type McpExtensionState } from "./state.js";
-import type { ToolMetadata, McpContent } from "./types.js";
-import { getServerPrefix, parseUiPromptHandoff } from "./types.js";
-import { lazyConnect, updateServerMetadata, updateMetadataCache, getFailureAgeSeconds, getServersNeedingAuth, updateStatusBar } from "./init.js";
-import { buildToolMetadata, getToolNames, findToolByName, formatSchema } from "./tool-metadata.js";
-import { loadMetadataCache, isServerCacheValid, reconstructToolMetadata } from "./metadata-cache.js";
-import { transformMcpContent } from "./tool-registrar.js";
-import { capContentBlocks, capText } from "./response-cap.js";
-import { maybeStartUiSession, type UiSessionRuntime } from "./ui-session.js";
-import { formatAuthRequiredMessage, truncateAtWord } from "./utils.js";
-import { authenticate, supportsOAuth } from "./mcp-auth-flow.js";
-import { resourceContentsToBlocks } from "./resource-tools.js";
+import { buildMcpRequestMeta, type McpExtensionState } from "./state.ts";
+import type { ToolMetadata, McpContent } from "./types.ts";
+import { getServerPrefix, parseUiPromptHandoff } from "./types.ts";
+import { lazyConnect, updateServerMetadata, updateMetadataCache, getFailureAgeSeconds, getServersNeedingAuth, updateStatusBar } from "./init.ts";
+import { buildToolMetadata, getToolNames, findToolByName, formatSchema } from "./tool-metadata.ts";
+import { loadMetadataCache, isServerCacheValid, reconstructToolMetadata } from "./metadata-cache.ts";
+import { transformMcpContent } from "./tool-registrar.ts";
+import { capContentBlocks, capText } from "./response-cap.ts";
+import { maybeStartUiSession, type UiSessionRuntime } from "./ui-session.ts";
+import { formatAuthRequiredMessage, truncateAtWord } from "./utils.ts";
+import { authenticate, supportsOAuth } from "./mcp-auth-flow.ts";
+import { resourceContentsToBlocks } from "./resource-tools.ts";
 
 type ProxyToolResult = AgentToolResult<Record<string, unknown>>;
 

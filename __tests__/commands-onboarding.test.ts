@@ -13,11 +13,11 @@ const mocks = {
   createMcpSetupPanel: vi.fn(),
 };
 
-vi.mock("../mcp-panel.js", () => ({
+vi.mock("../mcp-panel.ts", () => ({
   createMcpPanel: mocks.createMcpPanel,
 }));
 
-vi.mock("../mcp-setup-panel.js", () => ({
+vi.mock("../mcp-setup-panel.ts", () => ({
   createMcpSetupPanel: mocks.createMcpSetupPanel,
 }));
 

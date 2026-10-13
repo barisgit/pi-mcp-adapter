@@ -3,13 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
-import { computeServerHash, loadMetadataCache, reconstructToolMetadata, saveMetadataCache, serializeResources, serializeResourceTemplates } from "../metadata-cache.js";
-import { updateMetadataCache } from "../init.js";
-import type { McpExtensionState } from "../state.js";
-import { resourceContentsToBlocks } from "../resource-tools.js";
-import { buildToolMetadata } from "../tool-metadata.js";
-import { McpServerManager } from "../server-manager.js";
-import { logger, type LogEntry } from "../logger.js";
+import { computeServerHash, loadMetadataCache, reconstructToolMetadata, saveMetadataCache, serializeResources, serializeResourceTemplates } from "../metadata-cache.ts";
+import { updateMetadataCache } from "../init.ts";
+import type { McpExtensionState } from "../state.ts";
+import { resourceContentsToBlocks } from "../resource-tools.ts";
+import { buildToolMetadata } from "../tool-metadata.ts";
+import { McpServerManager } from "../server-manager.ts";
+import { logger, type LogEntry } from "../logger.ts";
 
 describe("generic MCP resources", () => {
   it("keeps concrete resources zero-argument and preserves their metadata through cache reconstruction", () => {

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { capContentBlocks, capText } from "../response-cap.js";
-import type { ContentBlock } from "../types.js";
+import { capContentBlocks, capText } from "../response-cap.ts";
+import type { ContentBlock } from "../types.ts";
 
 describe("capText", () => {
   it("passes through text under the limit unchanged", () => {

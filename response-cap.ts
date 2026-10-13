@@ -8,7 +8,7 @@ import {
   formatSize,
   truncateHead,
 } from "@earendil-works/pi-coding-agent";
-import type { ContentBlock, McpSettings } from "./types.js";
+import type { ContentBlock, McpSettings } from "./types.ts";
 
 /**
  * Safety layer for MCP tool-call responses.

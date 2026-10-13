@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { auth, UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { McpOAuthProvider, getOAuthCallbackPort, setOAuthCallbackPort } from "../mcp-oauth-provider.js";
-import { getAuthEntry, saveAuthEntry } from "../mcp-auth.js";
+import { McpOAuthProvider, getOAuthCallbackPort, setOAuthCallbackPort } from "../mcp-oauth-provider.ts";
+import { getAuthEntry, saveAuthEntry } from "../mcp-auth.ts";
 
 // Exercise real SDK discovery, registration, refresh and authorization using only
 // in-memory HTTP responses. No callback listener, browser or live service is used.

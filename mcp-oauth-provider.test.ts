@@ -13,8 +13,8 @@ import { randomBytes } from "crypto"
 const TEST_DIR = join(tmpdir(), `mcp-oauth-test-${randomBytes(4).toString('hex')}`)
 process.env.MCP_OAUTH_DIR = TEST_DIR
 
-import { McpOAuthProvider } from "./mcp-oauth-provider.js"
-import { saveAuthEntry, updateOAuthState } from "./mcp-auth.js"
+import { McpOAuthProvider } from "./mcp-oauth-provider.ts"
+import { saveAuthEntry, updateOAuthState } from "./mcp-auth.ts"
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import type { OAuthClientInformationFull, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js"
 

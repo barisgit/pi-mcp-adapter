@@ -31,7 +31,7 @@ import {
   clearClientInfo,
   clearTokens,
   type AuthEntry,
-} from "./mcp-auth.js"
+} from "./mcp-auth.ts"
 
 describe("mcp-auth", () => {
   before(() => {

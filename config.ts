@@ -2,9 +2,9 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { getAgentPath } from "./agent-dir.js";
-import type { McpConfig, ServerEntry, McpSettings, ImportKind, ServerProvenance } from "./types.js";
-import { logger } from "./logger.js";
+import { getAgentPath } from "./agent-dir.ts";
+import type { McpConfig, ServerEntry, McpSettings, ImportKind, ServerProvenance } from "./types.ts";
+import { logger } from "./logger.ts";
 
 const GENERIC_GLOBAL_CONFIG_PATH = join(homedir(), ".config", "mcp", "mcp.json");
 const PROJECT_CONFIG_NAME = ".mcp.json";

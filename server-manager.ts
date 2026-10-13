@@ -12,16 +12,16 @@ import type {
   ServerDefinition,
   ServerStreamResultPatchNotification,
   Transport,
-} from "./types.js";
-import { serverStreamResultPatchNotificationSchema } from "./types.js";
-import { resolveNpxBinary } from "./npx-resolver.js";
-import { logger } from "./logger.js";
-import { McpOAuthProvider } from "./mcp-oauth-provider.js";
-import { isOAuthRejection, supportsOAuth } from "./mcp-auth-flow.js";
-import { updateServerStatus } from "./server-status.js";
-import { registerSamplingHandler, type ServerSamplingConfig } from "./sampling-handler.js";
-import { registerElicitationHandler, type ServerElicitationConfig } from "./elicitation-handler.js";
-import { interpolateEnvRecord, resolveConfigPath } from "./utils.js";
+} from "./types.ts";
+import { serverStreamResultPatchNotificationSchema } from "./types.ts";
+import { resolveNpxBinary } from "./npx-resolver.ts";
+import { logger } from "./logger.ts";
+import { McpOAuthProvider } from "./mcp-oauth-provider.ts";
+import { isOAuthRejection, supportsOAuth } from "./mcp-auth-flow.ts";
+import { updateServerStatus } from "./server-status.ts";
+import { registerSamplingHandler, type ServerSamplingConfig } from "./sampling-handler.ts";
+import { registerElicitationHandler, type ServerElicitationConfig } from "./elicitation-handler.ts";
+import { interpolateEnvRecord, resolveConfigPath } from "./utils.ts";
 
 interface ServerConnection {
   client: Client;

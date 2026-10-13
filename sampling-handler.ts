@@ -1,5 +1,5 @@
 import type { AssistantMessage, Message, Model, ProviderStreamOptions, TextContent } from "@earendil-works/pi-ai/compat";
-import { truncateAtWord } from "./utils.js";
+import { truncateAtWord } from "./utils.ts";
 import type { ExtensionUIContext, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {

@@ -1,13 +1,13 @@
 // metadata-cache.ts - Persistent MCP metadata cache
 import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { getAgentPath } from "./agent-dir.js";
+import { getAgentPath } from "./agent-dir.ts";
 import { createHash } from "node:crypto";
 import { getToolUiResourceUri } from "@modelcontextprotocol/ext-apps/app-bridge";
-import type { McpTool, McpResource, McpResourceTemplate, ServerEntry, ToolMetadata } from "./types.js";
-import { formatToolName, getEffectiveToolDescription, isToolExcluded } from "./types.js";
-import { resourceToolBaseNames } from "./resource-tools.js";
-import { extractToolUiStreamMode, interpolateEnvRecord, resolveConfigPath } from "./utils.js";
+import type { McpTool, McpResource, McpResourceTemplate, ServerEntry, ToolMetadata } from "./types.ts";
+import { formatToolName, getEffectiveToolDescription, isToolExcluded } from "./types.ts";
+import { resourceToolBaseNames } from "./resource-tools.ts";
+import { extractToolUiStreamMode, interpolateEnvRecord, resolveConfigPath } from "./utils.ts";
 
 const CACHE_VERSION = 1;
 // Cached metadata stays usable past this age (so tools remain searchable);

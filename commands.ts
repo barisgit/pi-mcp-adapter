@@ -1,6 +1,6 @@
 import { BorderedLoader, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { McpExtensionState } from "./state.js";
-import type { ServerEntry, McpPanelCallbacks, McpPanelResult, ImportKind } from "./types.js";
+import type { McpExtensionState } from "./state.ts";
+import type { ServerEntry, McpPanelCallbacks, McpPanelResult, ImportKind } from "./types.ts";
 import {
   ensureCompatibilityImports,
   getMcpDiscoverySummary,
@@ -11,14 +11,14 @@ import {
   writePromotedToolsConfig,
   writeSharedServerEntry,
   writeStarterProjectConfig,
-} from "./config.js";
-import { lazyConnect, updateMetadataCache, updateStatusBar, getFailureAgeSeconds, getServersNeedingAuth } from "./init.js";
-import { loadMetadataCache } from "./metadata-cache.js";
-import { buildToolMetadata } from "./tool-metadata.js";
-import { supportsOAuth, authenticate } from "./mcp-auth-flow.js";
-import { hasStoredTokens } from "./mcp-auth.js";
-import { loadOnboardingState, markSetupCompleted as persistSetupCompleted, markSharedConfigHintShown } from "./onboarding-state.js";
-import { openPath } from "./utils.js";
+} from "./config.ts";
+import { lazyConnect, updateMetadataCache, updateStatusBar, getFailureAgeSeconds, getServersNeedingAuth } from "./init.ts";
+import { loadMetadataCache } from "./metadata-cache.ts";
+import { buildToolMetadata } from "./tool-metadata.ts";
+import { supportsOAuth, authenticate } from "./mcp-auth-flow.ts";
+import { hasStoredTokens } from "./mcp-auth.ts";
+import { loadOnboardingState, markSetupCompleted as persistSetupCompleted, markSharedConfigHintShown } from "./onboarding-state.ts";
+import { openPath } from "./utils.ts";
 
 export async function showStatus(state: McpExtensionState, ctx: ExtensionContext): Promise<void> {
   if (!ctx.hasUI) return;
@@ -269,7 +269,7 @@ export async function openMcpSetup(
 
   const discovery = getMcpDiscoverySummary(configOverridePath);
   const onboardingState = loadOnboardingState();
-  const { createMcpSetupPanel } = await import("./mcp-setup-panel.js");
+  const { createMcpSetupPanel } = await import("./mcp-setup-panel.ts");
   let configChanged = false;
 
   const callbacks = {
@@ -363,7 +363,7 @@ export async function openMcpPanel(
     },
   };
 
-  const { createMcpPanel } = await import("./mcp-panel.js");
+  const { createMcpPanel } = await import("./mcp-panel.ts");
   let configChanged = false;
 
   let loginServer: string | undefined;

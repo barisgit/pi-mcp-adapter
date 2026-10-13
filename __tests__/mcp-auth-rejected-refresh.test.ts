@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Real SDK auth against a local authorization server; only the callback server
 // and browser are stubbed.
-vi.mock("../mcp-callback-server.js", () => ({
+vi.mock("../mcp-callback-server.ts", () => ({
   ensureCallbackServer: vi.fn(async () => {}),
   waitForCallback: vi.fn(),
   cancelPendingCallback: vi.fn(),
@@ -148,7 +148,7 @@ describe("login with a refresh token the server rejects", () => {
 
   it("cancelling a pending browser login rejects it and clears the login state", async () => {
     await storeDeadTokens();
-    const callbacks = await import("../mcp-callback-server.js");
+    const callbacks = await import("../mcp-callback-server.ts");
     let rejectCallback!: (error: Error) => void;
     vi.mocked(callbacks.waitForCallback).mockReturnValue(new Promise((_resolve, reject) => { rejectCallback = reject; }));
     vi.mocked(callbacks.cancelPendingCallback).mockImplementation(() => rejectCallback(new Error("Authorization cancelled")));

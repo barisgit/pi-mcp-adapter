@@ -29,7 +29,7 @@ vi.mock("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
   StreamableHTTPClientTransport: MockStreamableHTTPClientTransport,
 }));
 
-vi.mock("../mcp-callback-server.js", () => ({
+vi.mock("../mcp-callback-server.ts", () => ({
   ensureCallbackServer: mocks.ensureCallbackServer,
   waitForCallback: mocks.waitForCallback,
   cancelPendingCallback: mocks.cancelPendingCallback,

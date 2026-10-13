@@ -33,10 +33,10 @@ vi.mock("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
   }),
 }));
 vi.mock("@modelcontextprotocol/sdk/client/sse.js", () => ({ SSEClientTransport: vi.fn() }));
-vi.mock("../npx-resolver.js", () => ({ resolveNpxBinary: vi.fn(async () => null) }));
+vi.mock("../npx-resolver.ts", () => ({ resolveNpxBinary: vi.fn(async () => null) }));
 
-import { McpServerManager } from "../server-manager.js";
-import { resolveNpxBinary } from "../npx-resolver.js";
+import { McpServerManager } from "../server-manager.ts";
+import { resolveNpxBinary } from "../npx-resolver.ts";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 
 beforeEach(() => {

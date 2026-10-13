@@ -5,8 +5,8 @@
 // failed is not re-probed on every startup (subagent sessions start often).
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { getAgentPath } from "./agent-dir.js";
-import { logger } from "./logger.js";
+import { getAgentPath } from "./agent-dir.ts";
+import { logger } from "./logger.ts";
 
 export interface ServerStatus {
   /** The last connection attempt was refused for missing or rejected OAuth credentials. */

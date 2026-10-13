@@ -3,8 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
-import { McpOAuthProvider } from "../mcp-oauth-provider.js";
-import { saveAuthEntry, updateOAuthState } from "../mcp-auth.js";
+import { McpOAuthProvider } from "../mcp-oauth-provider.ts";
+import { saveAuthEntry, updateOAuthState } from "../mcp-auth.ts";
 
 describe("McpOAuthProvider authorization fallback", () => {
   const originalOAuthDir = process.env.MCP_OAUTH_DIR;

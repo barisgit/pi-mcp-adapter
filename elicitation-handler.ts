@@ -5,8 +5,8 @@ import {
   type ElicitRequest,
   type ElicitResult,
 } from "@modelcontextprotocol/sdk/types.js";
-import { logger } from "./logger.js";
-import { truncateAtWord } from "./utils.js";
+import { logger } from "./logger.ts";
+import { truncateAtWord } from "./utils.ts";
 
 export interface ElicitationHandlerOptions {
   serverName: string;

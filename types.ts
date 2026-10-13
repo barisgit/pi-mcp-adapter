@@ -3,7 +3,7 @@ import type { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdi
 import type { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import type { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { TextContent, ImageContent } from "@earendil-works/pi-ai";
-import type { UiStreamMode } from "./ui-stream-types.js";
+import type { UiStreamMode } from "./ui-stream-types.ts";
 
 // Transport type (stdio + HTTP)
 export type Transport = 
@@ -149,7 +149,7 @@ export {
   type UiStreamResultPatchNotification,
   type ServerStreamResultPatchNotification,
   type UiStreamSummary,
-} from "./ui-stream-types.js";
+} from "./ui-stream-types.ts";
 
 export interface UiMessageParams {
   role?: string;
@@ -410,7 +410,7 @@ export interface ServerProvenance {
 export interface McpPanelCallbacks {
   reconnect: (serverName: string) => Promise<boolean>;
   getConnectionStatus: (serverName: string) => "connected" | "idle" | "failed" | "needs-auth";
-  refreshCacheAfterReconnect: (serverName: string) => import("./metadata-cache.js").ServerCacheEntry | null;
+  refreshCacheAfterReconnect: (serverName: string) => import("./metadata-cache.ts").ServerCacheEntry | null;
 }
 
 export interface McpPanelResult {

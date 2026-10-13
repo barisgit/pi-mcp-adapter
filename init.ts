@@ -1,9 +1,9 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { McpExtensionState } from "./state.js";
-import type { ToolMetadata } from "./types.js";
-import { loadMcpConfig } from "./config.js";
-import { ConsentManager } from "./consent-manager.js";
-import { McpLifecycleManager } from "./lifecycle.js";
+import type { McpExtensionState } from "./state.ts";
+import type { ToolMetadata } from "./types.ts";
+import { loadMcpConfig } from "./config.ts";
+import { ConsentManager } from "./consent-manager.ts";
+import { McpLifecycleManager } from "./lifecycle.ts";
 import {
   computeServerHash,
   isServerCacheStale,
@@ -15,14 +15,14 @@ import {
   serializeResourceTemplates,
   serializeTools,
   type ServerCacheEntry,
-} from "./metadata-cache.js";
-import { McpServerManager } from "./server-manager.js";
-import { logger } from "./logger.js";
-import { buildToolMetadata, totalToolCount } from "./tool-metadata.js";
-import { UiResourceHandler } from "./ui-resource-handler.js";
-import { openUrl, parallelLimit } from "./utils.js";
-import { getMissingConfiguredDirectToolServers } from "./direct-tools.js";
-import { loadServerStatuses, updateServerStatus } from "./server-status.js";
+} from "./metadata-cache.ts";
+import { McpServerManager } from "./server-manager.ts";
+import { logger } from "./logger.ts";
+import { buildToolMetadata, totalToolCount } from "./tool-metadata.ts";
+import { UiResourceHandler } from "./ui-resource-handler.ts";
+import { openUrl, parallelLimit } from "./utils.ts";
+import { getMissingConfiguredDirectToolServers } from "./direct-tools.ts";
+import { loadServerStatuses, updateServerStatus } from "./server-status.ts";
 
 const FAILURE_BACKOFF_MS = 60 * 1000;
 // A server whose background metadata refresh failed (or needs a login) is

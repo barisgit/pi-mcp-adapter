@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ContentBlock, McpResource } from "./types.js";
+import type { ContentBlock, McpResource } from "./types.ts";
 
 export function resourceNameToToolName(name: string): string {
   let result = name

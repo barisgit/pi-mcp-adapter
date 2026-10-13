@@ -35,33 +35,33 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
 }));
 
-vi.mock("../init.js", () => ({
+vi.mock("../init.ts", () => ({
   initializeMcp: mocks.initializeMcp,
   updateStatusBar: mocks.updateStatusBar,
   flushMetadataCache: mocks.flushMetadataCache,
 }));
 
-vi.mock("../mcp-auth-flow.js", () => ({
+vi.mock("../mcp-auth-flow.ts", () => ({
   initializeOAuth: mocks.initializeOAuth,
   shutdownOAuth: mocks.shutdownOAuth,
 }));
 
-vi.mock("../config.js", () => ({
+vi.mock("../config.ts", () => ({
   loadMcpConfig: mocks.loadMcpConfig,
 }));
 
-vi.mock("../metadata-cache.js", () => ({
+vi.mock("../metadata-cache.ts", () => ({
   loadMetadataCache: mocks.loadMetadataCache,
 }));
 
-vi.mock("../direct-tools.js", () => ({
+vi.mock("../direct-tools.ts", () => ({
   buildProxyDescription: mocks.buildProxyDescription,
   createDirectToolExecutor: mocks.createDirectToolExecutor,
   getMissingConfiguredDirectToolServers: mocks.getMissingConfiguredDirectToolServers,
   resolveDirectTools: mocks.resolveDirectTools,
 }));
 
-vi.mock("../commands.js", () => ({
+vi.mock("../commands.ts", () => ({
   showStatus: mocks.showStatus,
   showTools: mocks.showTools,
   reconnectServers: mocks.reconnectServers,
@@ -70,7 +70,7 @@ vi.mock("../commands.js", () => ({
   openMcpSetup: mocks.openMcpSetup,
 }));
 
-vi.mock("../proxy-modes.js", () => ({
+vi.mock("../proxy-modes.ts", () => ({
   executeCall: mocks.executeCall,
   executeConnect: mocks.executeConnect,
   executeDescribe: mocks.executeDescribe,
@@ -80,7 +80,7 @@ vi.mock("../proxy-modes.js", () => ({
   executeUiMessages: mocks.executeUiMessages,
 }));
 
-vi.mock("../utils.js", () => ({
+vi.mock("../utils.ts", () => ({
   getConfigPathFromArgv: mocks.getConfigPathFromArgv,
   truncateAtWord: mocks.truncateAtWord,
 }));
