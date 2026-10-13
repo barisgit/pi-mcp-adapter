@@ -323,6 +323,7 @@ export function createDirectToolExecutor(
     if (signal?.aborted) {
       return {
         content: [{ type: "text" as const, text: "Tool call cancelled before execution." }],
+        isError: true,
         details: { error: "aborted", server: spec.serverName },
       };
     }
@@ -336,6 +337,7 @@ export function createDirectToolExecutor(
         const message = error instanceof Error ? error.message : String(error);
         return {
           content: [{ type: "text" as const, text: `MCP initialization failed: ${message}` }],
+          isError: true,
           details: { error: "init_failed", message },
         };
       }
@@ -343,6 +345,7 @@ export function createDirectToolExecutor(
     if (!state) {
       return {
         content: [{ type: "text" as const, text: "MCP not initialized" }],
+        isError: true,
         details: { error: "not_initialized" },
       };
     }
@@ -356,6 +359,7 @@ export function createDirectToolExecutor(
       if (autoAuth.status === "failed") {
         return {
           content: [{ type: "text" as const, text: autoAuth.message }],
+          isError: true,
           details: { error: "auth_required", server: spec.serverName, message: autoAuth.message },
         };
       }
@@ -372,12 +376,14 @@ export function createDirectToolExecutor(
         const message = getDirectAuthRequiredMessage(state, spec.serverName);
         return {
           content: [{ type: "text" as const, text: message }],
+          isError: true,
           details: { error: "auth_required", server: spec.serverName, message, autoAuthAttempted },
         };
       }
       const failedAgo = getFailureAgeSeconds(state, spec.serverName);
       return {
         content: [{ type: "text" as const, text: `MCP server "${spec.serverName}" not available${failedAgo !== null ? ` (failed ${failedAgo}s ago)` : ""}` }],
+        isError: true,
         details: { error: "server_unavailable", server: spec.serverName },
       };
     }
@@ -386,6 +392,7 @@ export function createDirectToolExecutor(
     if (!connection || connection.status !== "connected") {
       return {
         content: [{ type: "text" as const, text: `MCP server "${spec.serverName}" not connected` }],
+        isError: true,
         details: { error: "not_connected", server: spec.serverName },
       };
     }
@@ -441,6 +448,7 @@ export function createDirectToolExecutor(
         }
         return {
           content: [{ type: "text" as const, text: `Error: ${errorText}` }],
+          isError: true,
           details: { error: "tool_error", server: spec.serverName },
         };
       }
@@ -471,6 +479,7 @@ export function createDirectToolExecutor(
       }
       return {
         content: [{ type: "text" as const, text: errorText }],
+        isError: true,
         details: { error: "call_failed", server: spec.serverName },
       };
     } finally {

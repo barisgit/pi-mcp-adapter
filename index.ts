@@ -382,12 +382,14 @@ export default function mcpAdapter(pi: ExtensionAPI) {
           const message = error instanceof Error ? error.message : String(error);
           return {
             content: [{ type: "text" as const, text: `MCP initialization failed: ${message}` }],
+            isError: true,
             details: { error: "init_failed", message },
           };
         }
         if (!state) {
           return {
             content: [{ type: "text" as const, text: "MCP not initialized" }],
+            isError: true,
             details: { error: "not_initialized" },
           };
         }
@@ -402,6 +404,7 @@ export default function mcpAdapter(pi: ExtensionAPI) {
           if (!params.server) {
             return {
               content: [{ type: "text" as const, text: "Reading a resource requires the server parameter." }],
+              isError: true,
               details: { error: "server_required", resource: params.resource },
             };
           }

@@ -36,12 +36,14 @@ export async function executeReadResource(
   if (!state.config.mcpServers[serverName]) {
     return {
       content: [{ type: "text" as const, text: `Server "${serverName}" not found. Use mcp({}) to see available servers.` }],
+      isError: true,
       details: { mode: "resource", error: "not_found", server: serverName, uri },
     };
   }
   if (signal?.aborted) {
     return {
       content: [{ type: "text" as const, text: "Resource read cancelled before execution." }],
+      isError: true,
       details: { mode: "resource", error: "aborted", server: serverName, uri },
     };
   }
@@ -62,6 +64,7 @@ export async function executeReadResource(
     const message = error instanceof Error ? error.message : String(error);
     return {
       content: [{ type: "text" as const, text: `Failed to read resource from "${serverName}": ${message}` }],
+      isError: true,
       details: { mode: "resource", error: "read_failed", server: serverName, uri, message },
     };
   }
@@ -263,6 +266,7 @@ export function executeDescribe(state: McpExtensionState, toolName: string): Pro
   if (!serverName || !toolMeta) {
     return {
       content: [{ type: "text" as const, text: `Tool "${toolName}" not found. Use mcp({ search: "..." }) to search.` }],
+      isError: true,
       details: { mode: "describe", error: "tool_not_found", requestedTool: toolName },
     };
   }
@@ -382,6 +386,7 @@ export async function executeSearch(
     if (!state.config.mcpServers[server]) {
       return {
         content: [{ type: "text" as const, text: `Server "${server}" not found. Use mcp({}) to see available servers.` }],
+        isError: true,
         details: { mode: "search", error: "server_not_found", server, matches: [], count: 0, query },
       };
     }
@@ -393,6 +398,7 @@ export async function executeSearch(
   if (terms.length === 0) {
     return {
       content: [{ type: "text" as const, text: "Search query cannot be empty" }],
+      isError: true,
       details: { mode: "search", error: "empty_query" },
     };
   }
@@ -404,6 +410,7 @@ export async function executeSearch(
     } catch {
       return {
         content: [{ type: "text" as const, text: `Invalid regex: ${query}` }],
+        isError: true,
         details: { mode: "search", error: "invalid_pattern", query },
       };
     }
@@ -488,6 +495,7 @@ export async function executeList(state: McpExtensionState, server: string): Pro
   if (!state.config.mcpServers[server]) {
     return {
       content: [{ type: "text" as const, text: `Server "${server}" not found. Use mcp({}) to see available servers.` }],
+      isError: true,
       details: { mode: "list", server, tools: [], count: 0, error: "not_found" },
     };
   }
@@ -516,6 +524,7 @@ export async function executeList(state: McpExtensionState, server: string): Pro
     }
     return {
       content: [{ type: "text" as const, text: `Server "${server}" is configured but not connected. Use mcp({ connect: "${server}" }) or /mcp reconnect ${server} to retry.` }],
+      isError: true,
       details: { mode: "list", server, tools: [], count: 0, error: "not_connected" },
     };
   }
@@ -567,6 +576,7 @@ export async function executeConnect(state: McpExtensionState, serverName: strin
   if (!definition) {
     return {
       content: [{ type: "text" as const, text: `Server "${serverName}" not found. Use mcp({}) to see available servers.` }],
+      isError: true,
       details: { mode: "connect", error: "not_found", server: serverName },
     };
   }
@@ -581,6 +591,7 @@ export async function executeConnect(state: McpExtensionState, serverName: strin
       if (autoAuth.status === "failed") {
         return {
           content: [{ type: "text" as const, text: autoAuth.message }],
+          isError: true,
           details: { mode: "connect", error: "auth_required", server: serverName, message: autoAuth.message },
         };
       }
@@ -592,6 +603,7 @@ export async function executeConnect(state: McpExtensionState, serverName: strin
         const message = getAuthRequiredMessage(state, serverName);
         return {
           content: [{ type: "text" as const, text: message }],
+          isError: true,
           details: { mode: "connect", error: "auth_required", server: serverName, message },
         };
       }
@@ -620,6 +632,7 @@ export async function executeConnect(state: McpExtensionState, serverName: strin
     const message = error instanceof Error ? error.message : String(error);
     return {
       content: [{ type: "text" as const, text: `Failed to connect to "${serverName}": ${message}` }],
+      isError: true,
       details: { mode: "connect", error: "connect_failed", server: serverName, message },
     };
   }
@@ -636,6 +649,7 @@ export async function executeCall(
   if (signal?.aborted) {
     return {
       content: [{ type: "text" as const, text: "Tool call cancelled before execution." }],
+      isError: true,
       details: { mode: "call", error: "aborted" },
     };
   }
@@ -647,6 +661,7 @@ export async function executeCall(
   if (serverName && !state.config.mcpServers[serverName]) {
     return {
       content: [{ type: "text" as const, text: `Server "${serverName}" not found. Use mcp({}) to see available servers.` }],
+      isError: true,
       details: { mode: "call", error: "server_not_found", server: serverName },
     };
   }
@@ -677,6 +692,7 @@ export async function executeCall(
           if (autoAuth.status === "failed") {
             return {
               content: [{ type: "text" as const, text: autoAuth.message }],
+              isError: true,
               details: { mode: "call", error: "auth_required", server: serverName, message: autoAuth.message },
             };
           }
@@ -689,6 +705,7 @@ export async function executeCall(
               if (!toolMeta) {
                 return {
                   content: [{ type: "text" as const, text: `Tool "${toolName}" not found on "${serverName}" after reconnect.` }],
+                  isError: true,
                   details: { mode: "call", error: "tool_not_found_after_reconnect", requestedTool: toolName },
                 };
               }
@@ -700,6 +717,7 @@ export async function executeCall(
           const message = getAuthRequiredMessage(state, serverName);
           return {
             content: [{ type: "text" as const, text: message }],
+            isError: true,
             details: { mode: "call", error: "auth_required", server: serverName, message },
           };
         }
@@ -710,6 +728,7 @@ export async function executeCall(
         if (failedAgo !== null) {
           return {
             content: [{ type: "text" as const, text: `Server "${serverName}" not available (last failed ${failedAgo}s ago)` }],
+            isError: true,
             details: { mode: "call", error: "server_backoff", server: serverName },
           };
         }
@@ -737,6 +756,7 @@ export async function executeCall(
         if (autoAuth.status === "failed") {
           return {
             content: [{ type: "text" as const, text: autoAuth.message }],
+            isError: true,
             details: { mode: "call", error: "auth_required", server: configuredServer, message: autoAuth.message },
           };
         }
@@ -764,6 +784,7 @@ export async function executeCall(
     if (nativeTool) {
       return {
         content: [{ type: "text" as const, text: `"${toolName}" is a native Pi tool. Call ${toolName} directly instead of using mcp({ tool: "${toolName}" }).` }],
+        isError: true,
         details: { mode: "call", error: "native_tool", requestedTool: toolName },
       };
     }
@@ -778,6 +799,7 @@ export async function executeCall(
     }
     return {
       content: [{ type: "text" as const, text: msg }],
+      isError: true,
       details: { mode: "call", error: "tool_not_found", requestedTool: toolName, hintServer },
     };
   }
@@ -790,6 +812,7 @@ export async function executeCall(
       if (autoAuth.status === "failed") {
         return {
           content: [{ type: "text" as const, text: autoAuth.message }],
+          isError: true,
           details: { mode: "call", error: "auth_required", server: serverName, message: autoAuth.message },
         };
       }
@@ -804,6 +827,7 @@ export async function executeCall(
       const message = getAuthRequiredMessage(state, serverName);
       return {
         content: [{ type: "text" as const, text: message }],
+        isError: true,
         details: { mode: "call", error: "auth_required", server: serverName, message },
       };
     }
@@ -813,6 +837,7 @@ export async function executeCall(
     if (failedAgo !== null) {
       return {
         content: [{ type: "text" as const, text: `Server "${serverName}" not available (last failed ${failedAgo}s ago)` }],
+        isError: true,
         details: { mode: "call", error: "server_backoff", server: serverName },
       };
     }
@@ -821,6 +846,7 @@ export async function executeCall(
     if (!definition) {
       return {
         content: [{ type: "text" as const, text: `Server "${serverName}" not connected` }],
+        isError: true,
         details: { mode: "call", error: "server_not_connected", server: serverName },
       };
     }
@@ -837,6 +863,7 @@ export async function executeCall(
           if (autoAuth.status === "failed") {
             return {
               content: [{ type: "text" as const, text: autoAuth.message }],
+              isError: true,
               details: { mode: "call", error: "auth_required", server: serverName, message: autoAuth.message },
             };
           }
@@ -850,6 +877,7 @@ export async function executeCall(
           const message = getAuthRequiredMessage(state, serverName);
           return {
             content: [{ type: "text" as const, text: message }],
+            isError: true,
             details: { mode: "call", error: "auth_required", server: serverName, message },
           };
         }
@@ -866,6 +894,7 @@ export async function executeCall(
           : `Server "${serverName}" has no tools.`;
         return {
           content: [{ type: "text" as const, text: `Tool "${toolName}" not found on "${serverName}" after reconnect. ${hint}` }],
+          isError: true,
           details: { mode: "call", error: "tool_not_found_after_reconnect", requestedTool: toolName },
         };
       }
@@ -875,6 +904,7 @@ export async function executeCall(
       const message = error instanceof Error ? error.message : String(error);
       return {
         content: [{ type: "text" as const, text: `Failed to connect to "${serverName}": ${message}` }],
+        isError: true,
         details: { mode: "call", error: "connect_failed", message },
       };
     }
@@ -929,6 +959,7 @@ export async function executeCall(
         }
         return {
           content: [{ type: "text" as const, text: errorWithSchema }],
+          isError: true,
           details: { mode: "call", error: "tool_error", mcpResult: result },
         };
       }
@@ -962,6 +993,7 @@ export async function executeCall(
 
       return {
         content: [{ type: "text" as const, text: errorWithSchema }],
+        isError: true,
         details: { mode: "call", error: "tool_error", mcpResult: result },
       };
     }
@@ -982,6 +1014,7 @@ export async function executeCall(
 
     return {
       content: [{ type: "text" as const, text: errorWithSchema }],
+      isError: true,
       details: { mode: "call", error: "call_failed", message },
     };
   } finally {

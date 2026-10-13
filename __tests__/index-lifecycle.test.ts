@@ -241,6 +241,16 @@ describe("mcpAdapter session lifecycle", () => {
     ]);
   });
 
+  it("marks an uninitialized proxy call as a failure", async () => {
+    const { default: mcpAdapter } = await import("../index.ts");
+    const { api } = createPi();
+    mcpAdapter(api);
+    const proxyTool = api.registerTool.mock.calls.find((call) => call[0].name === "mcp")?.[0];
+    const result = await proxyTool.execute("call", { tool: "search" }, undefined, undefined, undefined);
+    expect(result.isError).toBe(true);
+    expect(result.details.error).toBe("not_initialized");
+  });
+
   it("accepts native object args for proxy tool calls", async () => {
     const state = createState();
     mocks.initializeMcp.mockResolvedValue(state);
